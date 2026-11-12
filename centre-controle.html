@@ -1,0 +1,1144 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d1d1b">
+<title>Centre de contrôle Pros360</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+/* Mise en page : carte plein cadre ; à gauche un rail d'icônes (navigation) et un panneau de travail ; barre du haut légère.
+   Couleurs Stéphane Plaza Immobilier : rouge, noir, blanc. Même typographie que Pros360. */
+:root{
+  --bg:#f4f3f1; --surface:#ffffff; --surface2:#f6f5f3; --surface3:#efedea; --line:#e8e5e1;
+  --fg:#18181a; --muted:#77716c; --ink:#18181a; --ink-fg:#ffffff;
+  --accent:#e2001a; --accent-2:#b80016; --accent-fg:#ffffff; --accent-soft:#fdecee;
+  --ok:#2b8a3e; --warn:#d97706; --bad:#c92a2a; --cdp:#4dabf7;
+  --f:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --r:16px; --r-sm:11px;
+  --shadow:0 1px 2px rgba(24,24,26,.05),0 8px 28px rgba(24,24,26,.08);
+  --shadow-sm:0 1px 2px rgba(24,24,26,.06),0 2px 8px rgba(24,24,26,.06);
+  --panel:420px; --rail:84px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f0f10;--surface:#1a1a1c;--surface2:#222225;--surface3:#2a2a2e;--line:#2f2f33;--fg:#f2f1ef;--muted:#a19b96;--ink:#0a0a0b;
+    --accent:#ff2d43;--accent-2:#e2001a;--accent-soft:#3a171c;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);--shadow-sm:0 1px 3px rgba(0,0,0,.4);color-scheme:dark}
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--f);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+h1,h2,h3{font-weight:800;margin:0;letter-spacing:-.015em;text-wrap:balance}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:10px;border:3px solid var(--surface)}
+
+/* ---------- Structure ---------- */
+.shell{height:100%;display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0,1fr)}
+.topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top,0px) + 10px) max(18px,env(safe-area-inset-right,0px)) 10px max(18px,env(safe-area-inset-left,0px));position:relative;z-index:20}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;margin-right:auto}
+.mark{width:38px;height:38px;border-radius:11px;background:linear-gradient(160deg,#ff3b50,var(--accent) 55%,#a50014);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;letter-spacing:-.03em;flex:none;box-shadow:0 4px 12px rgba(226,0,26,.3)}
+.brand h1{font-size:17px;line-height:1.15}
+.brand small{display:block;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:0}
+.period{display:flex;background:var(--surface2);border-radius:999px;padding:4px;gap:2px}
+.period button{border:0;background:none;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.period button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow-sm)}
+.tctl{display:flex;align-items:center;gap:8px}
+.sync{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap;padding:0 4px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 20%,transparent)}
+.sync.err i{background:var(--bad)} .sync.load i{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.who-chip{display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:999px;padding:4px 12px 4px 4px;font-weight:700;font-size:13px}
+.who-chip .av{width:28px;height:28px;font-size:12px}
+.ibtn{width:38px;height:38px;border-radius:12px;border:0;background:var(--surface2);display:grid;place-items:center;cursor:pointer;color:var(--fg);flex:none}
+.ibtn:hover{background:var(--surface3)}
+.ibtn svg{width:18px;height:18px}
+
+.body{display:grid;grid-template-columns:var(--rail) var(--panel) minmax(0,1fr);min-height:0;transition:grid-template-columns .2s}
+.body.collapsed{grid-template-columns:var(--rail) 0 minmax(0,1fr)}
+.body.collapsed .panel{visibility:hidden}
+
+/* Rail de navigation */
+.rail{background:var(--ink);display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:12px 8px;overflow:auto}
+.rail button{border:0;background:none;color:rgba(255,255,255,.62);border-radius:14px;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700;font-size:11px;cursor:pointer;position:relative}
+.rail button svg{width:22px;height:22px}
+.rail button:hover{color:#fff;background:rgba(255,255,255,.07)}
+.rail button[aria-selected="true"]{color:#fff;background:rgba(255,255,255,.12)}
+.rail button[aria-selected="true"]::before{content:"";position:absolute;left:-8px;top:12px;bottom:12px;width:4px;border-radius:0 4px 4px 0;background:var(--accent)}
+.rail .sep{flex:1}
+
+/* Panneau */
+.panel{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:14px 14px 4px}
+.kpi{background:var(--surface2);border-radius:12px;padding:10px 4px 8px;text-align:center;min-width:0}
+.kpi strong{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{display:block;font-size:10.5px;color:var(--muted);font-weight:700;line-height:1.2;padding:0 2px;margin-top:2px}
+.kpi.main{background:var(--accent-soft)} .kpi.main strong{color:var(--accent)}
+.pane{overflow:auto;min-height:0;flex:1;padding:12px 16px 24px;display:flex;flex-direction:column;gap:12px}
+.pane-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pane-head h2{font-size:19px;margin-right:auto}
+.pane-sub{font-size:12.5px;color:var(--muted);margin:-6px 0 0}
+.sub-title{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:8px}
+
+/* Boutons */
+.tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn{border:0;background:var(--surface2);border-radius:10px;min-height:36px;padding:0 13px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;color:var(--fg);text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--surface3)}
+.btn svg{width:16px;height:16px}
+.btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent-2));color:#fff;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.ghost{background:none}
+.btn.sm{min-height:30px;padding:0 10px;font-size:12.5px;border-radius:9px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* Équipe : fiches conseillers */
+.member{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.member:hover{border-color:color-mix(in srgb,var(--c) 55%,var(--line));box-shadow:var(--shadow-sm)}
+.av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:15px;background:var(--c);color:var(--tc,#fff);flex:none;position:relative;border:0;padding:0;cursor:pointer}
+.member.off .av{background:var(--surface2);color:var(--muted);box-shadow:inset 0 0 0 2.5px var(--c)}
+.av .ck{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface);display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.av .ck svg{width:11px;height:11px;color:var(--ok)}
+.member.off .av .ck{display:none}
+.mname{font-weight:800;font-size:14.5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+.mstats{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.mstats b{color:var(--fg)}
+.meter{grid-column:2/3;height:4px;border-radius:4px;background:var(--surface2);overflow:hidden;margin-top:5px}
+.meter i{display:block;height:100%;border-radius:4px;background:var(--c)}
+.member.off .mstats,.member.off .meter{opacity:.45}
+.statut{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border-radius:6px;padding:1px 6px;background:var(--surface2);color:var(--muted)}
+.statut.Stagiaire{background:color-mix(in srgb,#7048e8 14%,var(--surface));color:#7048e8}.statut.Alternant{background:color-mix(in srgb,#0c8599 14%,var(--surface));color:#0c8599}
+.swatch{width:14px;height:14px;border-radius:50%;background:var(--c);display:inline-block;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.zoombtn{width:34px;height:34px;border-radius:10px;border:0;background:var(--surface2);display:grid;place-items:center;cursor:pointer;color:var(--fg)}
+.zoombtn:hover{background:var(--surface3)}.zoombtn svg{width:17px;height:17px}.zoombtn:disabled{opacity:.35;cursor:default}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;cursor:pointer}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+
+/* Activité */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:0;background:var(--surface2);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--ink-fg)}
+.chip .ab{font-size:10px;font-weight:800;background:var(--surface);color:var(--fg);border-radius:5px;padding:0 5px}
+.chip[aria-pressed="true"] .ab{background:rgba(255,255,255,.18);color:#fff}
+.search{position:relative}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+input[type=search]{width:100%;background:var(--surface2);border:1.5px solid transparent;border-radius:12px;padding:10px 12px 10px 36px;min-height:42px}
+input[type=search]:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.day{font-size:12px;font-weight:800;color:var(--muted);text-transform:capitalize;margin-top:8px;position:sticky;top:-12px;background:var(--surface);padding:6px 0 4px;z-index:1}
+.ev{display:grid;grid-template-columns:4px minmax(0,1fr);gap:11px;padding:10px 10px 10px 0;border-radius:12px;cursor:pointer}
+.ev:hover{background:var(--surface2)}
+.ev .bar{background:var(--c);border-radius:4px}
+.ev .l1{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.ev .t{font-weight:800}
+.ev .h{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
+.ev .m{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.ev .d{font-size:13px;margin-top:2px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ev .phs{display:flex;gap:5px;margin-top:6px}
+.ev .phs img{width:46px;height:46px;object-fit:cover;border-radius:8px}
+.vend{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:1px 6px;background:var(--accent-soft);color:var(--accent);margin-right:4px}
+.vend.part{background:var(--surface2);color:var(--fg)}
+.empty{color:var(--muted);text-align:center;padding:28px 16px;border-radius:14px;background:var(--surface2);font-size:13px}
+
+/* Formulaires */
+.form{border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface2);border:1px solid var(--line)}
+.form h3{font-size:16px}
+.form .chip{background:var(--surface);box-shadow:var(--shadow-sm);color:var(--fg)}
+.form .chip[aria-pressed="true"]{background:var(--ink);color:var(--ink-fg)}
+.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.f label,.flabel{font-weight:700;font-size:12px;color:var(--muted)}
+.f input,.f select{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;min-height:40px}
+.f input:focus,.f select:focus{outline:none;border-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.segc{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface3);border-radius:11px;padding:3px;gap:3px}
+.segc button{border:0;background:none;border-radius:9px;min-height:34px;font-weight:700;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.segc button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow-sm)}
+.drawbox{border:2px dashed color-mix(in srgb,var(--accent) 55%,transparent);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.cdpcheck{padding:10px 12px;border-radius:12px;background:var(--surface);border:1.5px solid var(--line)}
+.cdpcheck:has(input:checked){border-color:var(--cdp);background:color-mix(in srgb,var(--cdp) 10%,var(--surface))}
+.cdpdot{width:10px;height:10px;border-radius:50%;background:var(--cdp);display:inline-block}
+.pal{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.pal button{width:28px;height:28px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line);background:var(--c);cursor:pointer;padding:0}
+.pal button[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--fg)}
+.pal input[type=color]{width:36px;height:30px;border:1px solid var(--line);border-radius:8px;padding:1px;background:var(--surface)}
+.err{color:var(--bad);font-size:13px;font-weight:700}
+.note{font-size:12.5px;color:var(--muted)}
+.trow,.srow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:11px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.srow .acts{display:flex;gap:6px;grid-column:2/4;flex-wrap:wrap;margin-top:4px}
+#teamList,#sectList{display:flex;flex-direction:column;gap:8px}
+.age{font-size:11.5px;font-weight:800;border-radius:6px;padding:1px 7px;display:inline-block}
+.age.g{background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok)}
+.age.o{background:color-mix(in srgb,var(--warn) 15%,var(--surface));color:var(--warn)}
+.dz{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:6px}
+.vhead{display:flex;align-items:center;gap:8px;padding-left:6px}
+.vhead input{width:18px;height:18px;accent-color:var(--c);flex:none;cursor:pointer}
+.vbtn{flex:1;min-width:0;display:flex;align-items:center;gap:9px;border:0;background:none;padding:8px 6px;border-radius:10px;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.vbtn:hover{background:var(--surface3)}.vbtn b{font-size:15px}.vbtn .note{margin-left:auto;white-space:nowrap}
+.vbtn svg{width:16px;height:16px;flex:none;color:var(--muted);transition:transform .15s}.vbtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.drow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:4px 4px 4px 12px;border-top:1px solid var(--line)}
+.dname{border:0;background:none;padding:6px 0;text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
+.dname:hover b{text-decoration:underline}.dname .note{flex-basis:100%;font-size:12px}
+.dacts{display:flex;gap:2px}
+.ib{width:32px;height:32px;border:0;border-radius:9px;background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.ib:hover{background:var(--surface3);color:var(--fg)}.ib svg{width:17px;height:17px}
+.ib.del:hover,.ib.armed{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--surface))}
+.age.n{background:var(--surface3);color:var(--muted)}
+.age.r{background:color-mix(in srgb,var(--bad) 12%,var(--surface));color:var(--bad)}
+.opcard{border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:9px;background:color-mix(in srgb,var(--cdp) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--cdp) 35%,var(--line))}
+.opcard .head{display:flex;gap:8px;align-items:center}
+.opcard input{flex:1;min-width:0;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:7px 10px;font-weight:800}
+.opp{display:flex;flex-wrap:wrap;gap:6px}
+.opp span{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;background:var(--surface);border-radius:999px;padding:3px 10px 3px 4px;box-shadow:var(--shadow-sm)}
+.opp i{width:14px;height:14px;border-radius:50%;background:var(--c)}
+
+/* ---------- Carte ---------- */
+.mapwrap{position:relative;min-height:0;min-width:0}
+#map{position:absolute;inset:0;background:var(--surface2)}
+.map-draw #map{cursor:crosshair}
+.layers{position:absolute;z-index:500;left:14px;top:14px;display:flex;gap:4px;flex-wrap:wrap;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;padding:5px;box-shadow:var(--shadow);max-width:calc(100% - 200px)}
+.layers .chip{background:none;color:var(--muted)}
+.layers .chip[aria-pressed="true"]{background:var(--ink);color:var(--ink-fg)}
+.layers .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.5}
+.layers .chip .cdpdot{display:none}
+#lyrO::before{background:var(--cdp);opacity:1}
+.panelbtn{position:absolute;z-index:500;left:-1px;top:50%;transform:translateY(-50%);width:22px;height:56px;border:1px solid var(--line);border-left:0;border-radius:0 10px 10px 0;background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted);box-shadow:var(--shadow-sm)}
+.panelbtn svg{width:14px;height:14px;transition:transform .2s}
+.collapsed .panelbtn svg{transform:rotate(180deg)}
+.legend-box{position:absolute;z-index:500;left:14px;bottom:16px;background:color-mix(in srgb,var(--surface) 95%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;box-shadow:var(--shadow);max-width:calc(100% - 120px);font-size:12px}
+.legend-box summary{list-style:none;cursor:pointer;padding:8px 12px;font-weight:800;display:flex;align-items:center;gap:6px}
+.legend-box summary::-webkit-details-marker{display:none}
+.legend-box summary::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-135deg);margin-left:4px;margin-top:3px}
+.legend-box[open] summary::after{transform:rotate(45deg);margin-top:-3px}
+.legend{display:grid;grid-template-columns:auto auto;gap:5px 16px;padding:0 12px 11px;font-weight:600}
+.legend .ab{font-size:10px;font-weight:800;background:var(--fg);color:var(--bg);border-radius:5px;padding:0 5px;margin-right:6px}
+.legend .ln{display:inline-block;width:22px;height:0;border-top:4px solid var(--fg);vertical-align:middle;margin-right:6px}
+.fitbtn{position:absolute;z-index:500;right:12px;bottom:104px;background:var(--surface);box-shadow:var(--shadow)}
+.drawhint{position:absolute;z-index:600;left:50%;transform:translateX(-50%);top:70px;background:var(--ink);color:#fff;font-weight:700;padding:9px 16px;border-radius:999px;box-shadow:var(--shadow);pointer-events:none;font-size:13px;white-space:nowrap}
+.drawhint::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;animation:pulse 1.2s infinite}
+.leaflet-control-layers{border:0!important;border-radius:12px!important;box-shadow:var(--shadow)!important;font:600 13px var(--f);padding:4px 8px!important;background:var(--surface)!important;color:var(--fg)}
+.leaflet-bar{border:0!important;box-shadow:var(--shadow)!important;border-radius:12px!important;overflow:hidden}
+.leaflet-bar a{background:var(--surface)!important;color:var(--fg)!important;border-color:var(--line)!important;width:36px!important;height:36px!important;line-height:36px!important}
+.leaflet-popup-content-wrapper{border-radius:16px!important;box-shadow:var(--shadow)!important}
+.leaflet-popup-content{font:13px/1.5 var(--f);margin:12px 14px;color:#18181a}
+.leaflet-tooltip{font:12.5px/1.4 var(--f);border-radius:10px;border:0;box-shadow:var(--shadow-sm)}
+.pp b{font-size:14px} .pp .k{color:#77716c;font-size:12px}
+.pp .vend{background:#fdecee;color:#c4001a}.pp .vend.part{background:#f1f0ee;color:#18181a}
+.pp .phs{display:flex;gap:5px;margin-top:7px}.pp .phs img{width:72px;height:72px;object-fit:cover;border-radius:9px;cursor:zoom-in}
+.pp .who{display:inline-flex;align-items:center;gap:5px;font-weight:800}
+.pp .who i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.pp a{color:#c4001a;font-weight:700}
+.pp .delp{margin-top:8px;border:0;background:#fdecee;color:#c92a2a;border-radius:8px;padding:5px 10px;font:700 12px var(--f);cursor:pointer}
+.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--c);border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:grid;place-items:center}
+.pin span{transform:rotate(45deg);font:800 10.5px/1 var(--f);color:var(--tc);letter-spacing:-.02em}
+.sect-lbl{background:rgba(255,255,255,.92)!important;border:0!important;box-shadow:0 1px 4px rgba(0,0,0,.18)!important;font:800 11.5px var(--f)!important;color:#18181a!important;padding:2px 8px!important;border-radius:999px!important}
+.sect-lbl::before{display:none}
+.vtx{width:100%;height:100%;box-sizing:border-box;border-radius:50%;background:#fff;border:3px solid #18181a;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:move}
+.vtx.first{cursor:pointer;box-shadow:0 0 0 4px rgba(255,255,255,.85),0 1px 6px rgba(0,0,0,.4)}
+
+/* ---------- Connexion ---------- */
+.login{min-height:100%;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px));
+  background:radial-gradient(80% 60% at 85% 0%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%),var(--bg)}
+.login-card{width:100%;max-width:420px;background:var(--surface);border-radius:24px;box-shadow:var(--shadow);overflow:hidden}
+.login-hero{background:radial-gradient(120% 100% at 100% 0%,#ff3b50 0%,var(--accent) 45%,#9e0013 100%);color:#fff;padding:24px 24px 28px;display:flex;flex-direction:column;gap:12px}
+.login-hero .mark{background:#fff;color:var(--accent);box-shadow:none}
+.login-hero h2{font-size:30px;line-height:1.05}
+.login-hero p{margin:0;opacity:.9;font-size:13.5px}
+.login-form{padding:20px 24px 24px;display:flex;flex-direction:column;gap:14px}
+.banner{background:var(--accent-soft);border-radius:12px;padding:9px 12px;font-size:13px}
+.lb{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:56px 16px 20px}
+.lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.lb button{position:absolute;top:12px;right:16px;background:#fff;color:#18181a;border:0;border-radius:10px;height:40px;padding:0 16px;font-weight:800;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:2500;background:var(--ink);color:#fff;padding:11px 18px;border-radius:14px;font-weight:700;box-shadow:0 10px 28px rgba(0,0,0,.3);max-width:calc(100% - 32px)}
+.toast.bad{background:var(--bad)}
+
+@media (prefers-reduced-motion:reduce){.sync.load i,.drawhint::before{animation:none}.body{transition:none}}
+@media (max-width:1150px){ .period button{padding:6px 9px} :root{--panel:380px} }
+@media (max-width:900px){
+  :root{--rail:0px}
+  .topbar{gap:10px}.period{order:5;width:100%;overflow-x:auto}.who-chip span{display:none}
+  .body{grid-template-columns:1fr!important;grid-template-rows:56vh auto auto;overflow:auto}
+  .mapwrap{grid-row:1;min-height:56vh}
+  .rail{grid-row:2;flex-direction:row;overflow-x:auto;padding:6px}
+  .rail button{flex:1;min-width:68px}.rail button[aria-selected="true"]::before{display:none}.rail .sep{display:none}
+  .panel{grid-row:3;border-right:0;overflow:visible;visibility:visible!important}
+  .pane{overflow:visible}
+  .panelbtn,.legend-box{display:none}
+  .layers{max-width:calc(100% - 130px);left:10px;top:10px}
+  .period{min-width:0}.kpis{gap:4px;padding:12px 12px 4px}.kpi strong{font-size:18px}
+  .fitbtn{bottom:96px;width:36px;padding:0}.fitbtn span{display:none}.who-chip{display:none}
+}
+</style>
+</head>
+<body>
+
+<section class="login" id="login" hidden>
+  <div class="login-card">
+    <div class="login-hero">
+      <div style="display:flex;gap:11px;align-items:center"><div class="mark">SP</div><div style="font-weight:700;font-size:13px;line-height:1.35">Stéphane Plaza Immobilier<br><span style="opacity:.8;font-weight:600">Aulnay-sous-Bois</span></div></div>
+      <h2>Centre de contrôle</h2>
+      <p>La carte de la prospection de toute l'équipe. Le code n'est demandé qu'une fois sur cet ordinateur.</p>
+    </div>
+    <form id="loginForm" class="login-form">
+      <div class="banner" id="demoBanner" hidden>Mode démo : données d'exemple sur cet ordinateur. Choisissez « Direction », code 0000.</div>
+      <div class="f"><label for="lgNom">Qui êtes-vous ?</label><select id="lgNom" required></select></div>
+      <div class="f" id="lgCodeF" hidden><label for="lgCode">Code direction</label><input id="lgCode" type="password" autocomplete="current-password"></div>
+      <div class="err" id="lgErr" hidden></div>
+      <button class="btn primary" style="min-height:48px;font-size:15px;border-radius:14px" id="lgBtn" type="submit">Ouvrir le centre de contrôle</button>
+    </form>
+  </div>
+</section>
+
+<div class="shell" id="shell" hidden>
+  <header class="topbar">
+    <div class="brand"><div class="mark">SP</div><h1>Centre de contrôle<small>Pros360 · Stéphane Plaza Aulnay</small></h1></div>
+    <div class="period" id="periodPills" role="group" aria-label="Période">
+      <button type="button" data-per="jour">Aujourd'hui</button><button type="button" data-per="7">7 jours</button><button type="button" data-per="30">30 jours</button><button type="button" data-per="90">3 mois</button><button type="button" data-per="365">12 mois</button><button type="button" data-per="tout">Tout</button>
+    </div>
+    <select id="periode" aria-label="Période" hidden>
+      <option value="jour">Aujourd'hui</option><option value="7" selected>7 derniers jours</option><option value="30">30 derniers jours</option><option value="90">3 derniers mois</option><option value="365">12 derniers mois</option><option value="tout">Tout l'historique</option>
+    </select>
+    <div class="tctl">
+      <span class="sync" id="sync"><i></i><span id="syncTxt">—</span></span>
+      <button class="ibtn" type="button" id="btnRefresh" title="Actualiser" aria-label="Actualiser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+      <div class="who-chip"><span class="av" id="whoAv" style="--c:#18181a"></span><span id="whoName"></span></div>
+      <button class="ibtn" type="button" id="btnLogout" title="Changer d'utilisateur" aria-label="Changer d'utilisateur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></svg></button>
+    </div>
+  </header>
+
+  <div class="body" id="body">
+    <nav class="tabs rail" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" data-tab="equipe" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.3c.5-.2 1-.3 1.5-.3 2.8 0 5 2.2 5 5"/></svg>Équipe</button>
+      <button type="button" role="tab" data-tab="activite" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Activité</button>
+      <button type="button" role="tab" data-tab="ops" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2z"/><path d="M8 13c1.5-2 3-2.5 4-1s2.5 1 4-1"/></svg>Prospection</button>
+      <button type="button" role="tab" data-tab="secteurs" aria-selected="false" class="adm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l7-2 7 4-1 9-6 5-7-4z" stroke-dasharray="3 2.5"/><circle cx="12" cy="11" r="1.6"/></svg>Secteurs</button>
+      <button type="button" role="tab" data-tab="distrib" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>Distributeur</button>
+      <button type="button" role="tab" data-tab="gerer" aria-selected="false" id="tabGerer" class="adm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-3.6 3-6.5 7-6.5 1.3 0 2.5.3 3.5.9"/><path d="M18 14v6M15 17h6"/></svg>Membres</button>
+    </nav>
+    <aside class="panel">
+      <div class="kpis" id="kpis"></div>
+      <div class="pane" id="p-equipe">
+        <div class="pane-head"><h2>Équipe</h2><button class="btn sm" type="button" id="allOn">Tous</button><button class="btn sm" type="button" id="allOff">Aucun</button></div>
+        <p class="pane-sub">Touchez un conseiller pour afficher ou masquer ses points sur la carte.</p>
+        <div id="members" style="display:flex;flex-direction:column;gap:8px"></div>
+        <label class="check" style="margin-top:4px"><input type="checkbox" id="showInactifs"> Afficher les anciens membres</label>
+      </div>
+      <div class="pane" id="p-activite" hidden>
+        <div class="pane-head"><h2>Activité</h2></div>
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="search" placeholder="Rechercher une adresse, une agence, un secteur…" aria-label="Rechercher"></div>
+        <div class="chips" id="typeChips"></div>
+        <div id="feed"></div>
+      </div>
+      <div class="pane" id="p-secteurs" hidden>
+        <div class="pane-head"><h2>Secteurs</h2><button class="btn primary" type="button" id="btnNewSect">+ Nouveau secteur</button></div>
+        <p class="pane-sub">Les zones attribuées à chaque conseiller, avec la date du dernier passage.</p>
+        <form class="form" id="sectForm" hidden>
+          <h3 id="sectTitle" style="font-size:17px">Nouveau secteur</h3>
+          <div class="f"><label for="sNom">Nom du secteur</label><input id="sNom" type="text" maxlength="60" placeholder="Ex. Vieux-Pays nord"></div>
+          <div class="f"><label for="sCons">Conseiller du secteur</label><select id="sCons"></select></div>
+          <div class="drawbox"><b>Dessinez le contour du secteur sur la carte</b>
+            <span class="note" id="sDrawInfo">Cliquez sur la carte pour poser les coins du secteur, au moins 3.</span>
+            <div class="tools"><button type="button" class="btn" id="sUndo">Retirer le dernier coin</button><button type="button" class="btn" id="sClear">Tout effacer</button></div></div>
+          <div class="err" id="sErr" hidden></div>
+          <div class="tools"><button class="btn primary" type="submit" id="sSave">Enregistrer le secteur</button><button class="btn ghost" type="button" id="sCancel">Annuler</button></div>
+        </form>
+        <div id="sectList"></div>
+      </div>
+      <div class="pane" id="p-ops" hidden>
+        <div class="pane-head"><h2>Prospection</h2><button class="btn primary" type="button" id="btnNewProsp">+ Tracer</button></div>
+        <p class="pane-sub">Dessinez sur la carte les zones ou les rues prospectées, et les opérations coup de poing.</p>
+        <form class="form" id="prospForm" hidden>
+          <h3 style="font-size:17px">Nouvelle prospection</h3>
+          <div class="grid2">
+            <div class="f"><label for="prCons">Conseiller</label><select id="prCons"></select></div>
+            <div class="f"><label for="prDate">Date</label><input id="prDate" type="date"></div>
+          </div>
+          <div class="grid2">
+            <div class="f"><label for="prType">Type</label><select id="prType"></select></div>
+            <div class="f"><label for="prSect">Secteur</label><select id="prSect"></select></div>
+          </div>
+          <div class="f" id="prSectAutreF" hidden><label for="prSectAutre">Nom du secteur</label><input id="prSectAutre" type="text" maxlength="60"></div>
+          <label class="check cdpcheck"><input type="checkbox" id="prCdp"> <i class="cdpdot"></i> <b>Opération coup de poing</b> (en équipe)</label>
+          <div class="grid2" id="prOpF" hidden>
+            <div class="f"><label for="prOp">Opération</label><select id="prOp"></select></div>
+            <div class="f" id="prOpNomF"><label for="prOpNom">Nom de l'opération</label><input id="prOpNom" type="text" maxlength="60" placeholder="Ex. Coup de poing Le Bourg"></div>
+          </div>
+          <div class="f"><span class="flabel">Fait avec <span class="note">facultatif</span></span><div class="chips" id="prAvec"></div></div>
+          <div class="drawbox">
+            <div class="segc" id="prShape"><button type="button" data-shape="zone" aria-pressed="true">Zone (forme libre)</button><button type="button" data-shape="ligne" aria-pressed="false">Lignes (rues faites)</button></div>
+            <span class="note" id="prInfo"></span>
+            <div class="tools"><button type="button" class="btn" id="prNewLine">Nouvelle ligne</button><button type="button" class="btn" id="prUndo">Retirer le dernier point</button><button type="button" class="btn" id="prClear">Tout effacer</button></div>
+          </div>
+          <div class="grid2">
+            <div class="f"><label for="prQte" id="prQteL">Portes frappées</label><input id="prQte" type="number" min="0" inputmode="numeric"></div>
+            <div class="f"><label for="prCom">Commentaire</label><input id="prCom" type="text" maxlength="200"></div>
+          </div>
+          <div class="err" id="prErr" hidden></div>
+          <div class="tools"><button class="btn primary" type="submit" id="prSave">Enregistrer</button><button class="btn ghost" type="button" id="prCancel">Fermer</button></div>
+          <p class="note" style="margin:0" id="prKeepNote" hidden>Après l'enregistrement, le formulaire reste ouvert avec la même opération : changez de conseiller et tracez ses rues.</p>
+        </form>
+        <div class="sub-title">Opérations coup de poing</div>
+        <p class="note" style="margin:0">En <b style="color:#1c7ed6">bleu clair</b> sur la carte. Passez la souris sur un trait pour voir qui a fait la rue.</p>
+        <div id="opsList" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div class="pane" id="p-distrib" hidden>
+        <div class="pane-head"><h2>Distributeur</h2><button class="btn primary adm" type="button" id="btnNewDist">+ Zone</button></div>
+        <p class="pane-sub">Les zones pavillonnaires confiées au distributeur professionnel, une couleur par ville, et les rues à distribuer.</p>
+        <form class="form" id="distForm" hidden>
+          <h3 id="distTitle" style="font-size:17px">Nouvelle zone</h3>
+          <div class="grid2">
+            <div class="f"><label for="dVille">Ville</label><input id="dVille" type="text" maxlength="40" list="dVilles" placeholder="Ex. Aulnay-sous-Bois"><datalist id="dVilles"></datalist></div>
+            <div class="f"><label for="dNom">Nom de la zone</label><input id="dNom" type="text" maxlength="60" placeholder="Ex. Zone 10"></div>
+          </div>
+          <div class="grid2">
+            <div class="f"><label for="dStatut">Statut</label><select id="dStatut"><option value="a_faire">À distribuer</option><option value="faite">Distribuée</option><option value="exclue">À enlever (ne pas distribuer)</option></select></div>
+            <div class="f" id="dDateF"><label for="dDate">Distribuée le</label><input id="dDate" type="date"></div>
+          </div>
+          <div class="f"><label for="dCom">Commentaire</label><input id="dCom" type="text" maxlength="200"></div>
+          <div class="drawbox">
+            <div class="segc" id="dShape"><button type="button" data-shape="zone" aria-pressed="true">Zone (forme libre)</button><button type="button" data-shape="ligne" aria-pressed="false">Rues</button></div>
+            <span class="note" id="dInfo"></span>
+            <div class="tools"><button type="button" class="btn" id="dNewLine">Nouvelle rue</button><button type="button" class="btn" id="dUndo">Retirer le dernier point</button><button type="button" class="btn" id="dClear">Tout effacer</button></div>
+          </div>
+          <div class="err" id="dErr" hidden></div>
+          <div class="tools"><button class="btn primary" type="submit" id="dSave">Enregistrer</button><button class="btn ghost" type="button" id="dCancel">Annuler</button></div>
+        </form>
+        <div id="distList" style="display:flex;flex-direction:column;gap:12px"></div>
+      </div>
+      <div class="pane" id="p-gerer" hidden>
+        <div class="pane-head"><h2>Membres</h2><button class="btn primary" type="button" id="btnNew">+ Ajouter</button></div>
+        <p class="pane-sub">Conseillers, stagiaires et alternants : couleur sur la carte, accès direction, départs.</p>
+        <form class="form" id="memberForm" hidden>
+          <h3 id="formTitle" style="font-size:17px">Nouvelle personne</h3>
+          <div class="grid2">
+            <div class="f"><label for="mNom">Prénom ou nom affiché</label><input id="mNom" type="text" required maxlength="40"></div>
+            <div class="f"><label for="mStatut">Statut</label><select id="mStatut"><option>Conseiller</option><option>Stagiaire</option><option>Alternant</option><option>Direction</option></select></div>
+          </div>
+          <div class="f"><span class="flabel">Couleur sur la carte</span><div class="pal" id="mPal"></div></div>
+          <div class="grid2">
+            <div class="f" id="mCodeF"><label for="mCode">Code direction</label><input id="mCode" type="text" autocomplete="off" placeholder="4 caractères ou plus"></div>
+            <div class="f" style="justify-content:flex-end;gap:8px">
+              <label class="check"><input type="checkbox" id="mAdmin"> Accès direction (voit tout)</label>
+              <label class="check"><input type="checkbox" id="mActif" checked> Actif</label>
+            </div>
+          </div>
+          <div class="err" id="mErr" hidden></div>
+          <div class="tools"><button class="btn primary" type="submit" id="mSave">Enregistrer</button><button class="btn ghost" type="button" id="mCancel">Annuler</button></div>
+          <p class="note" style="margin:0">Les conseillers, stagiaires et alternants se connectent avec leur nom seul. Seul l'accès direction demande un code. Le nom ne peut plus être modifié après création : il relie la personne à ses pointages. Pour un départ, décochez « Actif » : l'historique reste visible.</p>
+        </form>
+        <div id="teamList"></div>
+      </div>
+    </aside>
+
+    <div class="mapwrap">
+      <div id="map"></div>
+      <button class="panelbtn" type="button" id="btnPanel" title="Masquer le panneau" aria-label="Masquer ou afficher le panneau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="layers" role="group" aria-label="Couches de la carte">
+        <button class="chip" type="button" id="lyrF" aria-pressed="true">Infos</button>
+        <button class="chip" type="button" id="lyrP" aria-pressed="true">Prospection</button>
+        <button class="chip" type="button" id="lyrO" aria-pressed="true"><i class="cdpdot"></i>Coup de poing</button>
+        <button class="chip" type="button" id="lyrS" aria-pressed="true">Secteurs</button>
+        <button class="chip" type="button" id="lyrD" aria-pressed="false"><i class="cdpdot" style="background:#7048e8"></i>Distributeur</button>
+      </div>
+      <div class="drawhint" id="drawHint" hidden>Cliquez pour poser les points</div>
+      <details class="legend-box"><summary>Légende</summary><div class="legend" id="legend"></div></details>
+      <button class="btn fitbtn" type="button" id="btnFit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Tout voir</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="lb" id="lightbox" hidden><button type="button">Fermer</button><img id="lbImg" alt="Photo du pointage"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ============================================================
+   CONFIGURATION — même URL Apps Script que l'application mobile
+   (vide = mode démo, données d'exemple sur cet ordinateur)
+   ============================================================ */
+const API_URL = '';
+
+const COLORS = [
+  ['Orange','#f76707'],['Marron','#8b5a2b'],['Bleu','#1c7ed6'],['Jaune','#f5c400'],['Vert','#2f9e44'],
+  ['Violet','#7048e8'],['Rose','#d6336c'],['Turquoise','#0c8599'],['Bleu nuit','#364fc7'],['Olive','#74b816'],['Gris','#868e96'],['Noir','#1d1d1b']
+];
+const DEMO_TEAM = [
+  {nom:'Direction',code:'0000',role:'admin',couleur:'#1d1d1b',actif:true,statut:'Direction'},
+  {nom:'Vahé',code:'',role:'conseiller',couleur:'#f76707',actif:true,statut:'Conseiller'},
+  {nom:'Dionis',code:'',role:'conseiller',couleur:'#8b5a2b',actif:true,statut:'Conseiller'},
+  {nom:'Samuel',code:'',role:'conseiller',couleur:'#1c7ed6',actif:true,statut:'Conseiller'},
+  {nom:'Warner',code:'',role:'conseiller',couleur:'#f5c400',actif:true,statut:'Conseiller'},
+  {nom:'Lilian',code:'',role:'conseiller',couleur:'#2f9e44',actif:true,statut:'Conseiller'},
+];
+/* Cartes Google My Maps de l'agence (secteurs, prospections, distributeur), pour le mode démo. Sans les noms des clients. */
+const MYMAPS={"secteurs":[{"id":"s-dionis","nom":"Reconquête","conseiller":"Dionis","zone":[[48.93716,2.49864],[48.93595,2.49865],[48.93464,2.49967],[48.93415,2.49911],[48.93387,2.49941],[48.93247,2.49771],[48.93233,2.4936],[48.93245,2.4905],[48.93312,2.48942],[48.93286,2.48856],[48.93338,2.4878],[48.9341,2.48772],[48.93413,2.48571],[48.93563,2.48532],[48.93559,2.48806],[48.93427,2.49121],[48.93486,2.49264],[48.93614,2.49291],[48.93622,2.49298],[48.93574,2.49413],[48.93634,2.49508]],"actif":"oui"},{"id":"s-samuel","nom":"Reconquête","conseiller":"Samuel","zone":[[48.93563,2.48532],[48.93571,2.4853],[48.93779,2.48598],[48.93908,2.48633],[48.93978,2.48694],[48.94161,2.48863],[48.94068,2.49195],[48.94073,2.49234],[48.94021,2.49165],[48.94011,2.49134],[48.93952,2.49101],[48.93847,2.49156],[48.93614,2.49291],[48.93486,2.49264],[48.93427,2.49121],[48.93559,2.48806]],"actif":"oui"},{"id":"s-warner","nom":"Reconquête","conseiller":"Warner","zone":[[48.94073,2.49234],[48.94128,2.49679],[48.94013,2.49943],[48.93729,2.49864],[48.93716,2.49864],[48.93634,2.49508],[48.93574,2.49413],[48.93622,2.49298],[48.93614,2.49291],[48.93847,2.49156],[48.93952,2.49101],[48.94011,2.49134],[48.94021,2.49165]],"actif":"oui"}],"prospections":[{"id":"mm-warner-0","debut":"2025-07-30T10:00:00","fin":"2025-07-30T10:00:00","conseiller":"Warner","type":"porte","secteur":"","secteurId":"","quantite":"","commentaire":"30/07/2025 PAP + FLY","mode":"ligne","trace":[[[48.94465,2.55538],[48.94508,2.55544],[48.94533,2.55548],[48.94537,2.55549],[48.94582,2.55558],[48.946,2.55561],[48.94651,2.5557],[48.94652,2.55563],[48.94601,2.55554],[48.94583,2.55551],[48.94539,2.55543],[48.9456,2.55478],[48.94562,2.55472],[48.94578,2.5543],[48.94583,2.55418],[48.94585,2.55415],[48.94583,2.55409],[48.94579,2.55414],[48.94574,2.55426],[48.94558,2.55469],[48.94556,2.55475],[48.94534,2.55541],[48.94509,2.55537],[48.94465,2.55531],[48.94464,2.55524],[48.94465,2.55518],[48.94467,2.55513],[48.94503,2.55417],[48.94512,2.55393],[48.94538,2.55326],[48.94542,2.55322],[48.94552,2.55316],[48.94574,2.55305],[48.94576,2.55304],[48.94637,2.5528],[48.9464,2.55278],[48.94689,2.55255],[48.94689,2.55248],[48.94641,2.55271],[48.94624,2.55177],[48.94619,2.55178],[48.94637,2.55273],[48.94576,2.55297],[48.94572,2.55299],[48.94551,2.55309],[48.94539,2.55317],[48.94535,2.5532],[48.94508,2.5539],[48.94499,2.55413],[48.94462,2.5551],[48.94461,2.55515],[48.94459,2.55522],[48.9446,2.5553],[48.94465,2.55531],[48.94464,2.55524],[48.94465,2.55518],[48.94467,2.55513],[48.94503,2.55417],[48.94512,2.55393],[48.94538,2.55326],[48.94542,2.55322]]],"avec":[],"operation":""},{"id":"mm-warner-3","debut":"2025-08-06T10:00:00","fin":"2025-08-06T10:00:00","conseiller":"Warner","type":"porte","secteur":"","secteurId":"","quantite":"","commentaire":"06/08/2025 PAP + FLY","mode":"ligne","trace":[[[48.94542,2.55334],[48.94577,2.554],[48.94583,2.55409],[48.94585,2.55415],[48.946,2.55445],[48.94623,2.5549],[48.94638,2.55519],[48.94656,2.55551],[48.9466,2.55547],[48.94642,2.55514],[48.94626,2.55486],[48.94603,2.55441],[48.94589,2.55412],[48.94597,2.55407],[48.94613,2.55399],[48.94635,2.55391],[48.94674,2.55374],[48.9468,2.55373],[48.94681,2.55367],[48.94673,2.55368],[48.94633,2.55384],[48.94612,2.55393],[48.94595,2.55401],[48.94587,2.55407],[48.9458,2.55396],[48.94544,2.55327],[48.94542,2.55322],[48.94552,2.55316],[48.94574,2.55305],[48.94576,2.55304],[48.94637,2.5528],[48.9464,2.55278],[48.94689,2.55255],[48.94687,2.55286],[48.94686,2.55298],[48.94681,2.55366],[48.9468,2.55373],[48.94667,2.55544],[48.94672,2.55545],[48.94685,2.55372],[48.94686,2.55366],[48.94691,2.55297],[48.94692,2.55289],[48.94694,2.55258],[48.94733,2.55289],[48.94736,2.55292],[48.9477,2.55322],[48.94785,2.55334],[48.94822,2.55366],[48.94827,2.55373],[48.94831,2.55369],[48.94825,2.55361],[48.9479,2.55331],[48.94794,2.55322],[48.9485,2.55168],[48.94846,2.55165],[48.94798,2.55297]]],"avec":[],"operation":""},{"id":"mm-warner-6","debut":"2025-10-21T10:00:00","fin":"2025-10-21T10:00:00","conseiller":"Warner","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"21/10/2025 BOITAGE ENCORE VENDU","mode":"ligne","trace":[[[48.92568,2.49589],[48.9246,2.49493],[48.92467,2.49472],[48.92474,2.49457],[48.92478,2.4945],[48.92481,2.49446],[48.92485,2.49442],[48.92495,2.49439],[48.92555,2.49421],[48.92555,2.49414],[48.92494,2.49432],[48.92484,2.49436],[48.92479,2.4944],[48.92475,2.49445],[48.9247,2.49453],[48.92463,2.49468],[48.92456,2.4949],[48.92355,2.49401],[48.92352,2.49398],[48.92345,2.49392],[48.92417,2.49372],[48.92422,2.4937],[48.92433,2.49367],[48.92545,2.49336],[48.92541,2.4933],[48.92432,2.4936],[48.92422,2.49363],[48.92417,2.49365],[48.92345,2.49385],[48.92345,2.49384],[48.92345,2.49383],[48.92345,2.49382],[48.92344,2.49382],[48.92344,2.49381],[48.92345,2.49371],[48.92387,2.49141],[48.92398,2.49083],[48.92402,2.49061],[48.92398,2.4906],[48.92394,2.49081],[48.92382,2.49139],[48.92341,2.4937],[48.9234,2.49377],[48.92339,2.49377],[48.92338,2.49377],[48.92338,2.49378],[48.92337,2.49378],[48.92329,2.49364],[48.92287,2.49276],[48.92314,2.49123],[48.92316,2.49112],[48.92332,2.49028],[48.92326,2.49025],[48.9231,2.49111],[48.92309,2.4912],[48.92281,2.49274],[48.92232,2.49287],[48.92206,2.49295],[48.92204,2.49304],[48.92232,2.49296],[48.92276,2.49402],[48.92283,2.494],[48.92238,2.49294],[48.92232,2.49296],[48.92277,2.49403],[48.9228,2.49411],[48.92331,2.49533],[48.92335,2.49541],[48.92393,2.49678],[48.92397,2.49676],[48.92339,2.49538],[48.92449,2.49509],[48.92451,2.49508],[48.92452,2.49506]]],"avec":[],"operation":""},{"id":"mm-warner-9","debut":"2025-10-24T10:00:00","fin":"2025-10-24T10:00:00","conseiller":"Warner","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"24/10/2025 BOITAGE ENCORE VENDU","mode":"ligne","trace":[[[48.92464,2.49102],[48.92458,2.49133],[48.92445,2.49211],[48.92443,2.49219],[48.92417,2.49365],[48.92422,2.49363],[48.92446,2.49222],[48.92533,2.4932],[48.9254,2.49328],[48.92541,2.4933],[48.92546,2.49329],[48.92543,2.49323],[48.92536,2.49315],[48.92448,2.49216],[48.92462,2.49139],[48.92546,2.49205],[48.92557,2.49222],[48.92557,2.49229],[48.9256,2.49234],[48.92599,2.49314],[48.92604,2.49308],[48.92568,2.49233],[48.9257,2.49227],[48.92573,2.49228],[48.92578,2.49233],[48.92584,2.49236],[48.92653,2.4929],[48.92669,2.49303],[48.92683,2.49313],[48.92685,2.49308],[48.92671,2.49297],[48.92655,2.49284],[48.92586,2.49231],[48.92577,2.49224],[48.92569,2.49221],[48.92566,2.49215],[48.9256,2.49216],[48.9255,2.49202],[48.92572,2.49137],[48.92645,2.49193],[48.92652,2.49198],[48.92658,2.49208],[48.92663,2.49213],[48.92696,2.49241],[48.92705,2.49249],[48.92708,2.49244],[48.92698,2.49236],[48.92665,2.49208],[48.9266,2.49203],[48.92654,2.49193],[48.92646,2.49187],[48.92575,2.49132],[48.92588,2.49088],[48.92584,2.49085],[48.92571,2.49126],[48.92568,2.49134],[48.92546,2.49198],[48.92463,2.49132],[48.92467,2.49112]]],"avec":[],"operation":""},{"id":"mm-warner-12","debut":"2025-11-28T10:00:00","fin":"2025-11-28T10:00:00","conseiller":"Warner","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"28/11/25 BAL VDPCV Avenue de Senneville","mode":"ligne","trace":[[[48.92263,2.49546],[48.92216,2.49429],[48.92214,2.49421],[48.92201,2.4939],[48.92198,2.49373],[48.92197,2.49364],[48.92196,2.49348],[48.92197,2.49341],[48.92204,2.49304],[48.92206,2.49295],[48.92234,2.49143],[48.92265,2.48977],[48.9226,2.48973],[48.92229,2.4914],[48.922,2.49296],[48.92198,2.49305],[48.92204,2.49304],[48.92197,2.49341],[48.92196,2.49348],[48.92197,2.49364],[48.92198,2.49373],[48.92201,2.4939],[48.92214,2.49421],[48.92208,2.49422],[48.92196,2.49394],[48.92193,2.49375],[48.92191,2.49365],[48.92191,2.49348],[48.92192,2.49339],[48.92198,2.49305],[48.92184,2.49308],[48.92116,2.49327],[48.92105,2.49332],[48.92099,2.49317],[48.92094,2.49324],[48.92087,2.49304],[48.92084,2.49297],[48.92071,2.49264],[48.9195,2.493],[48.91943,2.49306],[48.91939,2.4929],[48.91936,2.49262],[48.91931,2.49215],[48.91929,2.49209],[48.91937,2.49204],[48.91934,2.49193],[48.91925,2.49169],[48.91922,2.49151],[48.91919,2.49113],[48.91917,2.49099],[48.91935,2.49089],[48.91944,2.49084],[48.91983,2.49061],[48.91996,2.49054],[48.92001,2.49048],[48.92002,2.49052],[48.92013,2.49045],[48.92019,2.49038],[48.9207,2.49008],[48.92087,2.48997],[48.92141,2.48965],[48.92162,2.48951],[48.92187,2.48936],[48.922,2.48927],[48.92206,2.48932],[48.92194,2.48947],[48.92196,2.48954],[48.92193,2.48964],[48.92178,2.49022],[48.92172,2.49046],[48.92166,2.49069],[48.92149,2.49079],[48.92097,2.4911],[48.9208,2.4912],[48.92047,2.4914],[48.92037,2.49146],[48.92044,2.49172],[48.92052,2.49193],[48.92075,2.49254],[48.9208,2.49269],[48.92089,2.49293],[48.921,2.49321],[48.92105,2.49332],[48.92111,2.49318],[48.92111,2.49311],[48.92115,2.49298],[48.92117,2.49288],[48.92135,2.49223],[48.92164,2.49115],[48.9217,2.4909],[48.92174,2.49077],[48.92178,2.49061],[48.92182,2.49046],[48.92187,2.49028],[48.92202,2.4897],[48.92205,2.48951],[48.92209,2.48935],[48.92211,2.48929],[48.92222,2.48937],[48.92234,2.48948],[48.92244,2.48956],[48.9226,2.4897],[48.92265,2.48977],[48.92283,2.48991],[48.92298,2.49004],[48.92314,2.49015],[48.92321,2.49019],[48.92324,2.49005],[48.92317,2.49002],[48.92305,2.48993],[48.92287,2.48978],[48.92266,2.48961],[48.92248,2.48946],[48.92236,2.48935],[48.92232,2.48946],[48.92222,2.48937],[48.92211,2.48929],[48.92206,2.48949],[48.92204,2.48965],[48.92187,2.49028],[48.92186,2.4903]]],"avec":[],"operation":""},{"id":"mm-warner-15","debut":"2025-12-02T10:00:00","fin":"2025-12-02T10:00:00","conseiller":"Warner","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"02/12/25 BOITAGE FLY VDPCV Senneville","mode":"ligne","trace":[[[48.92222,2.48902],[48.92224,2.48887],[48.92239,2.48787],[48.9224,2.48777],[48.92247,2.48762],[48.9228,2.48696],[48.92329,2.48594],[48.9234,2.48573],[48.92335,2.48567],[48.92324,2.48588],[48.92274,2.4869],[48.92242,2.48756],[48.92237,2.48766],[48.92181,2.48694],[48.92265,2.48527],[48.92273,2.4851],[48.92277,2.48502],[48.92272,2.48496],[48.92268,2.48504],[48.92259,2.48521],[48.92176,2.48687],[48.92142,2.48644],[48.92127,2.48625],[48.92192,2.48494],[48.92221,2.48435],[48.92214,2.48427],[48.92185,2.48486],[48.9212,2.48616],[48.92096,2.48585],[48.9209,2.48578],[48.92071,2.48553],[48.92162,2.4837],[48.92157,2.48363],[48.92066,2.48547],[48.92063,2.48557],[48.92039,2.48603],[48.92005,2.4867],[48.91985,2.4871],[48.9199,2.48715],[48.9201,2.48675],[48.92043,2.48609],[48.92068,2.48563],[48.92086,2.48587],[48.92091,2.48593],[48.92116,2.48624],[48.92043,2.48767],[48.92051,2.48775],[48.92123,2.48633],[48.92137,2.48652],[48.92171,2.48696],[48.92108,2.48824],[48.92114,2.4883],[48.92176,2.48702],[48.92233,2.48775],[48.92232,2.48785]]],"avec":[],"operation":""},{"id":"mm-warner-18","debut":"2025-12-18T10:00:00","fin":"2025-12-18T10:00:00","conseiller":"Warner","type":"distrib","secteur":"Reconquête","secteurId":"s-warner","quantite":"","commentaire":"18/12/25 BAL estimation offerte","mode":"ligne","trace":[[[48.94014,2.49448],[48.94014,2.49377],[48.94014,2.49312],[48.94013,2.493],[48.94012,2.49168],[48.94011,2.49159],[48.94009,2.49152],[48.94007,2.49146],[48.94002,2.49138],[48.93997,2.49134],[48.93964,2.49113],[48.93956,2.49111],[48.93947,2.49113],[48.93936,2.49118],[48.93931,2.49123],[48.93928,2.49127],[48.9392,2.49147],[48.93923,2.49151],[48.93924,2.49159],[48.93924,2.49258],[48.93925,2.49313],[48.93925,2.4937],[48.93925,2.49476],[48.93921,2.49475],[48.9392,2.4937],[48.9392,2.49258],[48.93919,2.4916],[48.93918,2.49154],[48.93861,2.49308],[48.93822,2.49421],[48.93818,2.49428],[48.93802,2.49474],[48.93799,2.49469],[48.93814,2.49424],[48.93818,2.49417],[48.93855,2.49309],[48.93857,2.49305],[48.93914,2.49151],[48.93917,2.49142],[48.93925,2.49122],[48.93928,2.49117],[48.93934,2.49112],[48.93941,2.49109],[48.93951,2.49104],[48.93961,2.49105],[48.93965,2.49107],[48.93999,2.49127],[48.94005,2.49133],[48.9401,2.49142],[48.94013,2.49148],[48.94016,2.49159],[48.94017,2.49167],[48.94017,2.49302],[48.94022,2.49305],[48.9407,2.49336],[48.94072,2.4933],[48.94088,2.4927],[48.94093,2.49253],[48.94136,2.49146],[48.9414,2.49148],[48.94097,2.49256],[48.94092,2.49272],[48.94076,2.49332],[48.94074,2.49337],[48.94194,2.49416],[48.94271,2.49463],[48.94268,2.49471],[48.94191,2.49424],[48.94073,2.49346],[48.94067,2.49344],[48.9402,2.49314],[48.94018,2.49313],[48.94019,2.49367],[48.94019,2.49423]]],"avec":[],"operation":""},{"id":"mm-warner-21","debut":"2025-01-01T10:00:00","fin":"2025-01-01T10:00:00","conseiller":"Warner","type":"porte","secteur":"Reconquête","secteurId":"s-samuel","quantite":"","commentaire":"Itinéraire Rue Paul Bert (2 au 61) — date à confirmer","mode":"ligne","trace":[[[48.93498,2.49247],[48.93537,2.49173],[48.93553,2.49144],[48.93561,2.49128],[48.93573,2.49107],[48.93588,2.4908],[48.9362,2.49022],[48.93624,2.4901],[48.93631,2.48997],[48.93637,2.48978],[48.9364,2.48963],[48.93645,2.48919],[48.93649,2.48891],[48.93655,2.48842],[48.93717,2.4886],[48.93739,2.48866],[48.938,2.48883],[48.93801,2.48873],[48.9374,2.48855],[48.93718,2.4885],[48.93657,2.48832],[48.93649,2.48833],[48.93571,2.48808],[48.93565,2.48807],[48.9355,2.48808],[48.93492,2.48809],[48.93478,2.4881],[48.9348,2.48795],[48.93504,2.48666],[48.935,2.48665],[48.93475,2.48794],[48.93474,2.4881],[48.93415,2.48812],[48.9341,2.4881],[48.93394,2.48812],[48.93389,2.48819],[48.93409,2.48818],[48.93473,2.48817],[48.93488,2.48816],[48.9355,2.48815],[48.93571,2.48815],[48.9365,2.4884],[48.93649,2.48852]]],"avec":[],"operation":""},{"id":"mm-samuel-0","debut":"2025-06-15T10:00:00","fin":"2025-06-15T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"Distrib VPCV — juin 2025","mode":"zone","trace":[[48.9451,2.4949],[48.9463,2.4932],[48.9431,2.48947],[48.94268,2.48565],[48.94076,2.4908],[48.9451,2.4949]],"avec":[],"operation":""},{"id":"mm-samuel-1","debut":"2025-07-01T10:00:00","fin":"2025-07-01T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"Distrib VPCV — fin juin début juillet 2025","mode":"zone","trace":[[48.93568,2.48809],[48.93608,2.48084],[48.9328,2.48135],[48.93267,2.48328],[48.93239,2.48335],[48.93232,2.48687],[48.93274,2.4885],[48.93568,2.48809]],"avec":[],"operation":""},{"id":"mm-samuel-2","debut":"2025-07-15T10:00:00","fin":"2025-07-15T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"Reconquête","secteurId":"s-samuel","quantite":"","commentaire":"Distrib VPCV — juillet 2025","mode":"zone","trace":[[48.93486,2.49262],[48.93533,2.49324],[48.93581,2.49297],[48.93718,2.49038],[48.93755,2.48748],[48.93743,2.48741],[48.93731,2.48865],[48.93709,2.49028],[48.93573,2.49287],[48.93534,2.49309],[48.93496,2.49244],[48.93486,2.49262]],"avec":[],"operation":""},{"id":"mm-samuel-3","debut":"2025-08-06T10:00:00","fin":"2025-08-06T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"VPCV 06/08","mode":"zone","trace":[[48.93949,2.4833],[48.93919,2.48468],[48.93871,2.48886],[48.93741,2.48855],[48.93804,2.48372],[48.93791,2.48367],[48.93727,2.48877],[48.93883,2.48913],[48.93919,2.48575],[48.94182,2.48817],[48.942,2.48783],[48.93924,2.48557],[48.93933,2.48476],[48.94224,2.4871],[48.9423,2.48673],[48.9394,2.48454],[48.93949,2.4833]],"avec":[],"operation":""},{"id":"mm-samuel-4","debut":"2025-08-07T10:00:00","fin":"2025-08-07T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"Reconquête","secteurId":"s-samuel","quantite":"","commentaire":"VPCV 07/08","mode":"zone","trace":[[48.93582,2.48716],[48.93568,2.48809],[48.93592,2.48809],[48.93582,2.48716]],"avec":[],"operation":""},{"id":"mm-samuel-5","debut":"2025-07-31T10:00:00","fin":"2025-07-31T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"Reconquête","secteurId":"s-warner","quantite":"","commentaire":"VPCV 31/07","mode":"zone","trace":[[48.93673,2.49654],[48.93782,2.49395],[48.93823,2.49266],[48.93847,2.49159],[48.93883,2.48913],[48.93861,2.48914],[48.93827,2.49187],[48.93806,2.49272],[48.93776,2.49369],[48.93673,2.49616],[48.93673,2.49654]],"avec":[],"operation":""},{"id":"mm-samuel-6","debut":"2025-11-13T10:00:00","fin":"2025-11-13T10:00:00","conseiller":"Samuel","type":"porte","secteur":"","secteurId":"","quantite":"","commentaire":"Prospection 13/11 VPCV","mode":"zone","trace":[[48.94477,2.50573],[48.94526,2.50629],[48.94787,2.50144],[48.94913,2.49959],[48.9499,2.49889],[48.94912,2.49706],[48.94699,2.50034],[48.9473,2.50073],[48.94477,2.50573]],"avec":[],"operation":""},{"id":"mm-samuel-7","debut":"2025-12-02T10:00:00","fin":"2025-12-02T10:00:00","conseiller":"Samuel","type":"porte","secteur":"","secteurId":"","quantite":"","commentaire":"Pros 2/12 — vpcv","mode":"ligne","trace":[[[48.94913,2.49966],[48.95061,2.50265],[48.94948,2.50433],[48.94787,2.50144],[48.94913,2.49959]]],"avec":[],"operation":""},{"id":"mm-samuel-9","debut":"2025-12-11T10:00:00","fin":"2025-12-11T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"VPCV 11/12","mode":"zone","trace":[[48.94681,2.49997],[48.94625,2.4993],[48.94344,2.50499],[48.94401,2.50565],[48.94681,2.49997]],"avec":[],"operation":""},{"id":"mm-samuel-10","debut":"2026-03-15T10:00:00","fin":"2026-03-15T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"Reconquête","secteurId":"s-samuel","quantite":"","commentaire":"A VENDRE PCV — Mars 2026 avec Dionis","mode":"zone","trace":[[48.94076,2.49082],[48.94225,2.48693],[48.9394,2.48457],[48.93924,2.4856],[48.9359,2.48453],[48.93568,2.48811],[48.93883,2.48915],[48.94076,2.49082]],"avec":["Dionis"],"operation":""},{"id":"mm-samuel-11","debut":"2026-06-05T10:00:00","fin":"2026-06-05T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"VPCV 05/06 avec Dionis","mode":"zone","trace":[[48.95447,2.51511],[48.95329,2.51423],[48.95307,2.51485],[48.95319,2.51543],[48.95357,2.51567],[48.95388,2.51471],[48.9536,2.51568],[48.95381,2.51568],[48.95418,2.51594],[48.95416,2.51605],[48.95458,2.51635],[48.95486,2.51771],[48.95503,2.51821],[48.95509,2.51813],[48.95491,2.51771],[48.95462,2.51628],[48.95457,2.51618],[48.95474,2.51579],[48.95467,2.51577],[48.9545,2.51621],[48.95424,2.51602],[48.95447,2.51511]],"avec":["Dionis"],"operation":""},{"id":"mm-samuel-12","debut":"2025-01-01T10:00:00","fin":"2025-01-01T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"Polygone 13 — date à confirmer","mode":"zone","trace":[[48.9541,2.51187],[48.9533,2.51195],[48.95271,2.51379],[48.95208,2.51339],[48.95149,2.51408],[48.95237,2.51774],[48.95292,2.51748],[48.95315,2.51845],[48.95328,2.5185],[48.95362,2.51997],[48.95416,2.51941],[48.95445,2.51857],[48.95469,2.51834],[48.95489,2.51779],[48.95469,2.51651],[48.95455,2.5149],[48.9541,2.51187]],"avec":[],"operation":""},{"id":"mm-samuel-13","debut":"2026-06-12T10:00:00","fin":"2026-06-12T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"Reconquête","secteurId":"s-samuel","quantite":"","commentaire":"VPCV 12/06 Avec Dionis","mode":"zone","trace":[[48.93947,2.48355],[48.93921,2.48611],[48.93899,2.48902],[48.94065,2.49052],[48.94206,2.48693],[48.93947,2.4851],[48.93947,2.48355]],"avec":["Dionis"],"operation":""},{"id":"mm-samuel-14","debut":"2026-06-12T10:00:00","fin":"2026-06-12T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"VPCV 12/06","mode":"zone","trace":[[48.94268,2.48565],[48.9408,2.48416],[48.94123,2.48321],[48.93989,2.48214],[48.93964,2.48281],[48.93774,2.4812],[48.93753,2.48145],[48.93953,2.48298],[48.93949,2.4833],[48.94252,2.48594],[48.94268,2.48565]],"avec":[],"operation":""},{"id":"mm-samuel-15","debut":"2025-01-01T10:00:00","fin":"2025-01-01T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"VPCV AVEC DIONIS — date à confirmer","mode":"zone","trace":[[48.93081,2.49061],[48.93035,2.48815],[48.92949,2.48676],[48.92875,2.48608],[48.92853,2.48561],[48.92911,2.485],[48.92813,2.48334],[48.92769,2.4834],[48.92771,2.48443],[48.92778,2.4903],[48.92799,2.49065],[48.93081,2.49061]],"avec":["Dionis"],"operation":""},{"id":"mm-samuel-16","debut":"2026-08-20T10:00:00","fin":"2026-08-20T10:00:00","conseiller":"Samuel","type":"distrib","secteur":"","secteurId":"","quantite":"","commentaire":"VPCV 20/08 — Avec Dionis","mode":"zone","trace":[[48.94066,2.51448],[48.93986,2.51478],[48.94066,2.51477],[48.94079,2.5171],[48.93999,2.51735],[48.94153,2.5172],[48.94133,2.51285],[48.94056,2.51286],[48.94066,2.51448]],"avec":["Dionis"],"operation":""},{"id":"mm-samuel-17","debut":"2026-10-06T10:00:00","fin":"2026-10-06T10:00:00","conseiller":"Samuel","type":"porte","secteur":"Reconquête","secteurId":"s-samuel","quantite":"","commentaire":"Pros Vendu dans votre secteur 06/10 — Avec Dionis","mode":"ligne","trace":[[[48.93533,2.49324],[48.93581,2.49297],[48.93719,2.4902],[48.93804,2.48372],[48.93867,2.48415],[48.93769,2.49108],[48.93623,2.49299],[48.93714,2.4931],[48.93812,2.49308],[48.93717,2.49295],[48.93831,2.49155],[48.93806,2.49272],[48.9382,2.4928],[48.93883,2.48913]]],"avec":["Dionis"],"operation":""},{"id":"mm-dionis-a","debut":"2025-09-28T10:00:00","fin":"2025-09-28T10:00:00","conseiller":"Dionis","type":"distrib","secteur":"Reconquête","secteurId":"s-dionis","quantite":"","commentaire":"DISTRIB DIONIS 1 — DISTRIB 28 SEPT FLYER TOUTES VENTES","mode":"zone","trace":[[48.93575,2.49392],[48.93244,2.49348],[48.9323,2.49403],[48.93243,2.49793],[48.93382,2.49958],[48.93406,2.49937],[48.93455,2.49993],[48.93519,2.49927],[48.93586,2.49891],[48.93713,2.49874],[48.93703,2.49806],[48.93673,2.49674],[48.93658,2.49604],[48.93642,2.49542],[48.93625,2.49503],[48.93606,2.49446],[48.93587,2.49403],[48.93574,2.49383],[48.93575,2.49392]],"avec":[],"operation":""},{"id":"mm-dionis-b","debut":"2025-10-08T10:00:00","fin":"2025-10-08T10:00:00","conseiller":"Dionis","type":"distrib","secteur":"Reconquête","secteurId":"s-dionis","quantite":"","commentaire":"DISTRIB DIONIS — DISTRIB 08/10 FLYER TOUTES VENTES","mode":"zone","trace":[[48.93575,2.49392],[48.93533,2.49308],[48.93489,2.49249],[48.93459,2.49211],[48.93422,2.49152],[48.93432,2.49108],[48.93479,2.49007],[48.93534,2.4893],[48.93566,2.48827],[48.93572,2.48777],[48.93567,2.48698],[48.9356,2.48644],[48.93555,2.48603],[48.93565,2.48563],[48.93404,2.48597],[48.93405,2.48696],[48.9341,2.48804],[48.9335,2.48819],[48.93279,2.48851],[48.9332,2.48964],[48.93259,2.4904],[48.93254,2.4908],[48.93255,2.49144],[48.93252,2.49284],[48.93244,2.49348],[48.93575,2.49392]],"avec":[],"operation":""}],"distribution":[{"id":"d-autres-zones-a-enlever","ville":"Autres zones","nom":"À enlever","forme":"zone","statut":"exclue","date":"","commentaire":"","trace":[[48.94416,2.48727],[48.94238,2.47833],[48.92652,2.4856],[48.92582,2.49187],[48.93224,2.49341],[48.93578,2.49387],[48.93838,2.50328],[48.94416,2.48727]],"actif":"oui"},{"id":"d-autres-zones-a-faire-1","ville":"Autres zones","nom":"À faire 1","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.93261,2.49678],[48.92592,2.49407],[48.92634,2.48431],[48.91651,2.49045],[48.91681,2.50532],[48.9292,2.51949],[48.95095,2.52495],[48.9561,2.52006],[48.95426,2.51226],[48.96436,2.49824],[48.9484,2.47789],[48.95015,2.4856],[48.94443,2.48906],[48.93911,2.50534],[48.93569,2.49602],[48.93261,2.49678]],"actif":"oui"},{"id":"d-autres-zones-a-faire-2","ville":"Autres zones","nom":"À faire 2","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96665,2.52417],[48.96571,2.52153],[48.96333,2.52233],[48.95864,2.52868],[48.96009,2.53535],[48.96392,2.53717],[48.96671,2.53202],[48.96812,2.52763],[48.96665,2.52417]],"actif":"oui"},{"id":"d-autres-zones-a-faire-3","ville":"Autres zones","nom":"À faire 3","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96417,2.5372],[48.96121,2.54263],[48.96377,2.55049],[48.96504,2.55321],[48.97003,2.55044],[48.97109,2.54916],[48.96417,2.5372]],"actif":"oui"},{"id":"d-autres-zones-a-faire-4","ville":"Autres zones","nom":"À faire 4","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95877,2.54946],[48.95622,2.55139],[48.95498,2.55532],[48.95663,2.5595],[48.96069,2.55528],[48.95877,2.54946]],"actif":"oui"},{"id":"d-autres-zones-lilian-et-vahe","ville":"Autres zones","nom":"Lilian et Vahé","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.9527,2.52973],[48.95772,2.54492],[48.96073,2.54263],[48.95818,2.53334],[48.95576,2.52945],[48.9527,2.52973]],"actif":"oui"},{"id":"d-autres-zones-a-faire-5","ville":"Autres zones","nom":"À faire 5","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95663,2.5595],[48.95498,2.55532],[48.95594,2.55152],[48.95374,2.54938],[48.95199,2.55127],[48.95067,2.55444],[48.94979,2.55684],[48.94751,2.55929],[48.9439,2.56358],[48.94481,2.56637],[48.94743,2.56607],[48.95332,2.56255],[48.95663,2.5595]],"actif":"oui"},{"id":"d-autres-zones-a-faire-6","ville":"Autres zones","nom":"À faire 6","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95733,2.54503],[48.95491,2.53765],[48.95062,2.54267],[48.94826,2.54752],[48.94741,2.54782],[48.9469,2.55229],[48.94628,2.56018],[48.94955,2.55666],[48.95199,2.55127],[48.95463,2.54782],[48.95733,2.54503]],"actif":"oui"},{"id":"d-autres-zones-a-faire-7","ville":"Autres zones","nom":"À faire 7","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.94752,2.54445],[48.94358,2.54859],[48.94225,2.55018],[48.94425,2.55355],[48.94502,2.55769],[48.94621,2.56046],[48.94752,2.54445]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-1","ville":"Aulnay-sous-Bois","nom":"Zone 1","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95104,2.50356],[48.94657,2.49389],[48.94398,2.4972],[48.94042,2.50205],[48.94792,2.51269],[48.9502,2.51067],[48.94956,2.50634],[48.95104,2.50356]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-2","ville":"Aulnay-sous-Bois","nom":"Zone 2","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.94925,2.48848],[48.94809,2.48637],[48.9446,2.49049],[48.94606,2.4935],[48.94925,2.48848]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-3","ville":"Aulnay-sous-Bois","nom":"Zone 3","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.94458,2.49199],[48.94217,2.47886],[48.936,2.48088],[48.93242,2.48135],[48.93233,2.48642],[48.93304,2.48886],[48.93577,2.49358],[48.9368,2.49642],[48.93817,2.50079],[48.9402,2.50135],[48.94169,2.49693],[48.94307,2.49637],[48.94352,2.49509],[48.94458,2.49199]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-4","ville":"Aulnay-sous-Bois","nom":"Zone 4","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.94365,2.50726],[48.94334,2.50672],[48.94094,2.50357],[48.94024,2.50305],[48.93999,2.50327],[48.93838,2.50434],[48.93959,2.50569],[48.93987,2.50728],[48.94268,2.50967],[48.94365,2.50726]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-6","ville":"Aulnay-sous-Bois","nom":"Zone 6","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.93827,2.50124],[48.93742,2.50008],[48.93578,2.49387],[48.93271,2.48875],[48.93259,2.51025],[48.93336,2.51038],[48.93827,2.50124]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-7","ville":"Aulnay-sous-Bois","nom":"Zone 7","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92799,2.51241],[48.92896,2.51362],[48.92941,2.50973],[48.92999,2.50924],[48.92992,2.50651],[48.93102,2.50497],[48.93154,2.5016],[48.93013,2.50235],[48.929,2.49347],[48.91908,2.48656],[48.91682,2.49192],[48.91758,2.49724],[48.91897,2.50136],[48.92055,2.50242],[48.92245,2.50527],[48.92401,2.51141],[48.92689,2.51475],[48.92799,2.51241]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-8","ville":"Aulnay-sous-Bois","nom":"Zone 8","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92795,2.49044],[48.93078,2.49007],[48.92957,2.4866],[48.92788,2.48561],[48.93058,2.48398],[48.92982,2.482],[48.92489,2.48132],[48.91843,2.47887],[48.91843,2.48372],[48.91835,2.486],[48.92714,2.49179],[48.92795,2.49044]],"actif":"oui"},{"id":"d-aulnay-sous-bois-zone-9","ville":"Aulnay-sous-Bois","nom":"Zone 9","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92835,2.51758],[48.91876,2.50728],[48.91958,2.51457],[48.92243,2.51625],[48.92539,2.51852],[48.92832,2.51835],[48.92835,2.51758]],"actif":"oui"},{"id":"d-le-blanc-mesnil-zone-1","ville":"Le Blanc-Mesnil","nom":"Zone 1","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.93277,2.48031],[48.93605,2.47998],[48.9374,2.47961],[48.94043,2.47882],[48.94054,2.47796],[48.93778,2.4741],[48.93501,2.4765],[48.93263,2.47792],[48.93277,2.48031]],"actif":"oui"},{"id":"d-le-blanc-mesnil-zone-2","ville":"Le Blanc-Mesnil","nom":"Zone 2","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.93245,2.47736],[48.93225,2.47753],[48.93487,2.47598],[48.93685,2.47452],[48.93998,2.47079],[48.94319,2.4659],[48.93454,2.45616],[48.93298,2.45581],[48.93245,2.47736]],"actif":"oui"},{"id":"d-le-blanc-mesnil-zone-3","ville":"Le Blanc-Mesnil","nom":"Zone 3","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92832,2.47589],[48.92633,2.4778],[48.92496,2.47449],[48.92402,2.47389],[48.92199,2.47702],[48.92224,2.47831],[48.92305,2.48024],[48.9255,2.48108],[48.92876,2.48082],[48.92928,2.48033],[48.92832,2.47589]],"actif":"oui"},{"id":"d-le-blanc-mesnil-zone-4","ville":"Le Blanc-Mesnil","nom":"Zone 4","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.94322,2.46552],[48.947,2.45878],[48.94472,2.45007],[48.941,2.45856],[48.93967,2.45586],[48.9377,2.4547],[48.93553,2.45685],[48.94322,2.46552]],"actif":"oui"},{"id":"d-le-blanc-mesnil-zone-5","ville":"Le Blanc-Mesnil","nom":"Zone 5","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92803,2.4746],[48.93068,2.47057],[48.93068,2.46679],[48.92995,2.46379],[48.92845,2.4616],[48.92451,2.4634],[48.92535,2.46503],[48.92676,2.47112],[48.92803,2.4746]],"actif":"oui"},{"id":"d-villepinte-zone-1","ville":"Villepinte","nom":"Zone 1","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96022,2.53349],[48.9638,2.53459],[48.96887,2.53081],[48.96595,2.52148],[48.96375,2.52263],[48.96006,2.52684],[48.95971,2.52815],[48.96022,2.53349]],"actif":"oui"},{"id":"d-villepinte-zone-2","ville":"Villepinte","nom":"Zone 2","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96165,2.53445],[48.96058,2.53361],[48.95967,2.53363],[48.95946,2.5365],[48.96078,2.53816],[48.96165,2.53445]],"actif":"oui"},{"id":"d-villepinte-zone-3","ville":"Villepinte","nom":"Zone 3","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96457,2.54101],[48.96402,2.54],[48.96324,2.54114],[48.96394,2.54248],[48.96457,2.54101]],"actif":"oui"},{"id":"d-villepinte-zone-4","ville":"Villepinte","nom":"Zone 4","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96295,2.5416],[48.96251,2.54097],[48.96202,2.54256],[48.96235,2.54361],[48.96263,2.54462],[48.96322,2.54642],[48.96384,2.54728],[48.96413,2.547],[48.96467,2.54544],[48.96434,2.54479],[48.96375,2.54331],[48.96326,2.54271],[48.96303,2.54202],[48.96295,2.5416]],"actif":"oui"},{"id":"d-villepinte-zone-5","ville":"Villepinte","nom":"Zone 5","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.96476,2.54379],[48.96514,2.54443],[48.96594,2.54302],[48.96589,2.54214],[48.96543,2.54102],[48.96473,2.5406],[48.96457,2.54083],[48.96475,2.54136],[48.96457,2.54173],[48.96447,2.54339],[48.96476,2.54379]],"actif":"oui"},{"id":"d-villepinte-zone-6","ville":"Villepinte","nom":"Zone 6","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.97057,2.54897],[48.96765,2.5441],[48.96654,2.54603],[48.96572,2.54577],[48.96523,2.54552],[48.96338,2.54796],[48.96486,2.55277],[48.97044,2.54974],[48.97057,2.54897]],"actif":"oui"},{"id":"d-villepinte-zone-7","ville":"Villepinte","nom":"Zone 7","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95126,2.53619],[48.95137,2.53868],[48.95005,2.54297],[48.94826,2.54752],[48.94741,2.54782],[48.9476,2.54481],[48.94712,2.54438],[48.94221,2.54958],[48.94168,2.55391],[48.94425,2.55355],[48.94419,2.55653],[48.94599,2.56061],[48.94371,2.56361],[48.9443,2.56618],[48.94616,2.56709],[48.95182,2.56224],[48.95952,2.557],[48.95985,2.55322],[48.95892,2.55013],[48.9567,2.55194],[48.95554,2.54829],[48.95752,2.54516],[48.95382,2.5343],[48.95126,2.53619]],"actif":"oui"},{"id":"d-villepinte-zone-8","ville":"Villepinte","nom":"Zone 8","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95757,2.53406],[48.95625,2.53503],[48.95688,2.53721],[48.95652,2.53884],[48.95686,2.53917],[48.95838,2.53791],[48.95872,2.53822],[48.95872,2.53874],[48.95835,2.53996],[48.95954,2.54097],[48.95972,2.54064],[48.95909,2.53759],[48.95768,2.53482],[48.95757,2.53406]],"actif":"oui"},{"id":"d-villepinte-zone-9","ville":"Villepinte","nom":"Zone 9","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.95286,2.53248],[48.94998,2.53269],[48.95005,2.53545],[48.95126,2.53619],[48.95299,2.53448],[48.95286,2.53248]],"actif":"oui"},{"id":"d-drancy-zone-1","ville":"Drancy","nom":"Zone 1","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92183,2.46999],[48.9211,2.46821],[48.92209,2.46707],[48.92441,2.46387],[48.92374,2.46274],[48.91953,2.46074],[48.91657,2.45793],[48.91365,2.46278],[48.9126,2.46437],[48.91334,2.46647],[48.91059,2.4743],[48.91652,2.47776],[48.91848,2.47686],[48.92183,2.46999]],"actif":"oui"},{"id":"d-drancy-zone-2","ville":"Drancy","nom":"Zone 2","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.91657,2.45793],[48.9197,2.4516],[48.91307,2.43748],[48.91073,2.44374],[48.9067,2.46082],[48.90574,2.46477],[48.90579,2.47026],[48.91016,2.47451],[48.91251,2.46838],[48.91304,2.46619],[48.91225,2.46404],[48.91657,2.45793]],"actif":"oui"},{"id":"d-drancy-zone-3","ville":"Drancy","nom":"Zone 3","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.92001,2.45121],[48.92354,2.45906],[48.92478,2.4579],[48.92636,2.45932],[48.92393,2.46181],[48.92478,2.4631],[48.9285,2.46125],[48.9314,2.45657],[48.93109,2.45529],[48.93019,2.45198],[48.92999,2.44718],[48.93019,2.44151],[48.92737,2.43885],[48.92627,2.44117],[48.92684,2.4425],[48.92506,2.44722],[48.92365,2.44606],[48.92241,2.44782],[48.92001,2.45121]],"actif":"oui"},{"id":"d-drancy-zone-4","ville":"Drancy","nom":"Zone 4","forme":"zone","statut":"a_faire","date":"","commentaire":"","trace":[[48.93022,2.43117],[48.92623,2.42686],[48.92634,2.42628],[48.92448,2.42673],[48.92114,2.42795],[48.91497,2.43126],[48.91316,2.43645],[48.91979,2.45091],[48.92306,2.44632],[48.92588,2.4398],[48.92754,2.43765],[48.93022,2.43117]],"actif":"oui"},{"id":"d-rues-a-distribuer","ville":"Aulnay-sous-Bois","nom":"Rues à distribuer","forme":"ligne","statut":"a_faire","date":"","commentaire":"150 rues tracées sur My Maps","trace":[[[48.9356,2.48683],[48.93451,2.48644],[48.93319,2.48512]],[[48.93414,2.48814],[48.93401,2.48604],[48.93464,2.48362],[48.93456,2.48383]],[[48.93272,2.48324],[48.93466,2.48505],[48.93568,2.48564],[48.93558,2.4856]],[[48.93585,2.48474],[48.93381,2.48347]],[[48.93357,2.48402],[48.93397,2.48317]],[[48.94536,2.48227],[48.9457,2.48297]],[[48.93277,2.48024],[48.93263,2.47792],[48.93265,2.4781]],[[48.93233,2.48591],[48.93312,2.48501],[48.93331,2.48522]],[[48.9333,2.48816],[48.93309,2.48423],[48.93347,2.48159],[48.93346,2.4813]],[[48.9334,2.48974],[48.93389,2.48872],[48.93386,2.48813],[48.9333,2.48816],[48.93343,2.48812]],[[48.93381,2.49045],[48.93486,2.48804]],[[48.93495,2.49247],[48.93631,2.48993],[48.93656,2.48828]],[[48.93578,2.49387],[48.93242,2.49351]],[[48.95149,2.50011],[48.95075,2.50072],[48.95078,2.50073]],[[48.95057,2.49765],[48.95231,2.50253],[48.95233,2.50257]],[[48.95057,2.49765],[48.94971,2.49842]],[[48.94413,2.49672],[48.94789,2.50149],[48.95016,2.50522],[48.95045,2.50559]],[[48.94989,2.49878],[48.94779,2.5014]],[[48.94909,2.49713],[48.94702,2.50033]],[[48.94617,2.49934],[48.94343,2.50492]],[[48.94892,2.49818],[48.94729,2.50065]],[[48.95036,2.49571],[48.94931,2.49761]],[[48.94962,2.49486],[48.94863,2.49683],[48.94868,2.49676],[48.94865,2.49685]],[[48.94894,2.49388],[48.94789,2.49633]],[[48.94248,2.48865],[48.9391,2.48554],[48.93585,2.48474]],[[48.9368,2.49642],[48.93819,2.49281],[48.93922,2.48494],[48.93982,2.48221],[48.93934,2.48431]],[[48.93961,2.48293],[48.93756,2.48133]],[[48.93897,2.48368],[48.93764,2.48273],[48.93749,2.48332]],[[48.93981,2.48239],[48.94109,2.48321]],[[48.94035,2.48273],[48.94079,2.48123]],[[48.93943,2.48067],[48.93997,2.47952],[48.94041,2.47944],[48.94068,2.47974]],[[48.94068,2.47974],[48.94175,2.47912],[48.94285,2.48033]],[[48.94126,2.47941],[48.94229,2.48063]],[[48.94285,2.48033],[48.94232,2.48154]],[[48.94273,2.482],[48.94068,2.47974]],[[48.94305,2.48551],[48.94279,2.48326],[48.94255,2.48311]],[[48.94153,2.48902],[48.939,2.48668],[48.93566,2.48576],[48.93563,2.48557]],[[48.94118,2.48996],[48.93884,2.4878],[48.93559,2.48691],[48.93605,2.48705]],[[48.94273,2.48599],[48.94078,2.49084]],[[48.93429,2.48811],[48.93881,2.48901],[48.94518,2.49493]],[[48.94405,2.49115],[48.94269,2.49477],[48.94277,2.49491],[48.94274,2.49446]],[[48.94274,2.48206],[48.94245,2.48378],[48.94308,2.48949],[48.94458,2.49199]],[[48.945,2.49315],[48.94455,2.49429]],[[48.94921,2.48876],[48.94806,2.48702]],[[48.94789,2.48782],[48.94767,2.48769],[48.94576,2.48986],[48.94564,2.49044]],[[48.94638,2.49079],[48.94542,2.49203]],[[48.93396,2.49374],[48.93377,2.49403],[48.93234,2.49499]],[[48.93337,2.4943],[48.93364,2.49501]],[[48.93439,2.49428],[48.93339,2.49622]],[[48.93477,2.49487],[48.93381,2.49676]],[[48.93515,2.49548],[48.93419,2.49731]],[[48.93514,2.49702],[48.93698,2.49855]],[[48.93259,2.49496],[48.93447,2.49773],[48.93571,2.49881],[48.93703,2.49864]],[[48.93571,2.49881],[48.93495,2.49931],[48.93402,2.501],[48.93373,2.50355]],[[48.93827,2.50124],[48.93799,2.50255],[48.9374,2.50311]],[[48.9377,2.50283],[48.93779,2.50315],[48.93774,2.50371],[48.93818,2.50388],[48.93836,2.50411],[48.93865,2.5041],[48.93939,2.5026],[48.93939,2.50205],[48.93948,2.50157]],[[48.93575,2.49397],[48.93541,2.49634],[48.93458,2.49844],[48.93365,2.49996]],[[48.93545,2.4959],[48.93469,2.49478],[48.93409,2.49383],[48.93409,2.49368]],[[48.93582,2.4939],[48.93658,2.49581],[48.93678,2.49773],[48.93721,2.49865]],[[48.93873,2.49535],[48.93815,2.49796]],[[48.9401,2.49768],[48.93916,2.49717],[48.94018,2.49768],[48.94011,2.49864],[48.93899,2.49808]],[[48.93891,2.49832],[48.93674,2.49722]],[[48.93971,2.4948],[48.93873,2.49919],[48.93833,2.50004],[48.93782,2.50072]],[[48.93991,2.49958],[48.93721,2.49868],[48.93758,2.49962]],[[48.94044,2.5015],[48.93983,2.50154]],[[48.94275,2.49481],[48.93773,2.4948]],[[48.94159,2.49484],[48.94158,2.49607]],[[48.94268,2.49485],[48.94263,2.49586],[48.94074,2.49615]],[[48.94018,2.49462],[48.94013,2.49162],[48.94009,2.49139],[48.9396,2.49107],[48.93928,2.49117],[48.93799,2.49477]],[[48.93919,2.49151],[48.93923,2.49168],[48.93923,2.49478]],[[48.94267,2.49467],[48.94014,2.49305]],[[48.94248,2.48865],[48.94074,2.49311],[48.9407,2.49343]],[[48.94356,2.4903],[48.94233,2.49339]],[[48.94304,2.48946],[48.94161,2.49311]],[[48.93915,2.49038],[48.93855,2.49022],[48.93856,2.49018]],[[48.93806,2.49299],[48.93567,2.49295],[48.93537,2.4931]],[[48.93835,2.49158],[48.93717,2.49299]],[[48.93801,2.48883],[48.93776,2.4911],[48.9362,2.49296]],[[48.93947,2.48347],[48.9391,2.48319],[48.93881,2.48422]],[[48.93655,2.48491],[48.93683,2.48252]],[[48.93585,2.48474],[48.93559,2.48613],[48.93575,2.48784]],[[48.93621,2.49012],[48.93482,2.48999],[48.93488,2.48998]],[[48.93512,2.48905],[48.93458,2.48871]],[[48.93503,2.4866],[48.93473,2.48821]],[[48.92589,2.49069],[48.92642,2.48909],[48.92768,2.48815],[48.92872,2.48849],[48.92934,2.48983],[48.92936,2.49099],[48.9292,2.49196],[48.92881,2.49255],[48.92855,2.49295]],[[48.92636,2.48905],[48.92756,2.49043],[48.92412,2.48636]],[[48.93162,2.49189],[48.92997,2.49191],[48.92969,2.4929]],[[48.93164,2.49062],[48.92937,2.4906]],[[48.93151,2.48871],[48.93123,2.48853],[48.93092,2.48764]],[[48.92775,2.48598],[48.92875,2.48614],[48.9301,2.48752],[48.93061,2.4889],[48.93083,2.4906]],[[48.92795,2.49044],[48.93092,2.48764]],[[48.93134,2.48721],[48.93091,2.48767]],[[48.93013,2.49052],[48.9299,2.48918],[48.92931,2.48786],[48.92849,2.48715],[48.92756,2.48713],[48.92654,2.4875],[48.92594,2.48841]],[[48.93119,2.48942],[48.9307,2.48961]],[[48.92796,2.49064],[48.92937,2.4906]],[[48.93109,2.48477],[48.92982,2.48608],[48.92796,2.49027]],[[48.93143,2.48534],[48.93019,2.48668],[48.9298,2.48613]],[[48.92912,2.48497],[48.92808,2.48332]],[[48.92777,2.49008],[48.92769,2.48337]],[[48.92775,2.48452],[48.92869,2.48613]],[[48.92495,2.48161],[48.9277,2.49016]],[[48.92806,2.48267],[48.92793,2.48286],[48.92404,2.49041]],[[48.92681,2.48219],[48.92662,2.48336],[48.92325,2.49016]],[[48.92008,2.47974],[48.92116,2.48041],[48.92611,2.48671]],[[48.93062,2.48317],[48.92777,2.4834]],[[48.92446,2.48152],[48.92112,2.48818]],[[48.92295,2.48092],[48.91984,2.48719]],[[48.92152,2.48023],[48.91952,2.48423],[48.91882,2.48634]],[[48.92224,2.48058],[48.91926,2.48662]],[[48.92807,2.48077],[48.92502,2.48082],[48.92317,2.48008]],[[48.91923,2.47938],[48.91877,2.48212]],[[48.92006,2.47958],[48.91852,2.48592]],[[48.92496,2.49061],[48.92361,2.49055],[48.91852,2.48592]],[[48.91908,2.48656],[48.91908,2.48982],[48.91912,2.49126],[48.91957,2.49333]],[[48.92511,2.48225],[48.92241,2.4877],[48.92214,2.48923]],[[48.91908,2.48369],[48.91973,2.48429],[48.92241,2.4877]],[[48.9226,2.48977],[48.92193,2.49338]],[[48.92686,2.49312],[48.92805,2.49407]],[[48.92805,2.49407],[48.92815,2.49511]],[[48.92802,2.49244],[48.92677,2.49457]],[[48.92565,2.49228],[48.92716,2.49541]],[[48.92682,2.49307],[48.92561,2.49213]],[[48.92591,2.49073],[48.92548,2.49197],[48.92567,2.49231]],[[48.93137,2.49516],[48.92906,2.49527]],[[48.95366,2.50012],[48.95416,2.50411]],[[48.95276,2.49673],[48.95368,2.49813],[48.954,2.49744]],[[48.941,2.50005],[48.94246,2.50158]],[[48.94117,2.4998],[48.94173,2.49976],[48.94197,2.49951],[48.94288,2.50056]],[[48.94328,2.49684],[48.94303,2.49938],[48.94313,2.49988],[48.94363,2.50041]],[[48.9443,2.5012],[48.94389,2.50065],[48.9439,2.50055],[48.9439,2.50063]],[[48.94396,2.49835],[48.94319,2.49797],[48.94282,2.4979],[48.94223,2.49996]],[[48.94506,2.49793],[48.94287,2.50237]],[[48.94559,2.49868],[48.94337,2.50299],[48.94295,2.50431],[48.94241,2.50526]],[[48.95104,2.50356],[48.95004,2.50511]],[[48.94824,2.50212],[48.94746,2.50371]],[[48.94669,2.50021],[48.94398,2.50573]],[[48.94725,2.50074],[48.94476,2.50579],[48.94528,2.50646]],[[48.9501,2.5035],[48.94855,2.50039]],[[48.94699,2.49717],[48.94589,2.49881],[48.94585,2.49888]],[[48.9463,2.49685],[48.94537,2.49823]],[[48.95551,2.50569],[48.95509,2.50632]],[[48.95662,2.5053],[48.9548,2.5024]],[[48.95518,2.50309],[48.95487,2.50353],[48.95509,2.50384],[48.95546,2.50335]],[[48.95543,2.50332],[48.95599,2.50246]],[[48.95682,2.5005],[48.95605,2.50162]],[[48.95673,2.50026],[48.95762,2.5017],[48.95727,2.50225]],[[48.93376,2.50837],[48.93239,2.50803],[48.93275,2.50854]],[[48.93391,2.50731],[48.93238,2.50697]],[[48.93411,2.50618],[48.93232,2.50575]],[[48.94287,2.50237],[48.94294,2.50427]]],"actif":"oui"}]};
+const TYPES = {
+  info_vente:{label:'Info mise en vente',ab:'I'}, rdv_estim:{label:"RDV d'estimation",ab:'R'},
+  a_vendre:{label:'Bien à vendre',ab:'AV'}, en_vente:{label:'Bien en vente',ab:'EV'}, vendu:{label:'Bien vendu',ab:'V'},
+  panneau_av:{label:'Panneau À vendre',ab:'PA'}, panneau_vendu:{label:'Panneau Vendu',ab:'PV'},
+};
+const PROSPE = {
+  porte:{label:'Porte-à-porte',qty:'Portes frappées',dash:null},
+  distrib:{label:'Distribution',qty:'Boîtes aux lettres',dash:'12 8'},
+  panneau:{label:'Attaque de panneau',qty:'Panneaux attaqués',dash:'2 8'},
+};
+
+/* ---------- Utilitaires ---------- */
+const $=s=>document.querySelector(s);
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const fmtH=d=>new Date(d).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+const fmtFull=d=>new Date(d).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+function fmtDay(d){const x=new Date(d),t=new Date(),y=new Date();y.setDate(t.getDate()-1);
+  if(x.toDateString()===t.toDateString())return"Aujourd'hui"; if(x.toDateString()===y.toDateString())return'Hier';
+  return x.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});}
+function ago(d){const m=Math.round((Date.now()-new Date(d).getTime())/60000); if(m<60)return`il y a ${Math.max(m,1)} min`; const h=Math.round(m/60); if(h<24)return`il y a ${h} h`; const j=Math.round(h/24); return`il y a ${j} j`;}
+function dist(a,b){const R=6371000,r=Math.PI/180,dLa=(b[0]-a[0])*r,dLo=(b[1]-a[1])*r;const h=Math.sin(dLa/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+const pathLen=p=>{let s=0;for(let i=1;i<p.length;i++)s+=dist(p[i-1],p[i]);return s;};
+const km=m=>(m/1000).toLocaleString('fr-FR',{minimumFractionDigits:1,maximumFractionDigits:1});
+function initials(n){const p=String(n||'?').trim().split(/\s+/);return((p[0]||'?')[0]+(p[1]?p[1][0]:'')).toUpperCase();}
+function textOn(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;return (0.299*r+0.587*g+0.114*b)>165?'#1d1d1b':'#ffffff';}
+const photoUrl=(p,big)=>/^(data:|https?:)/.test(p)?p:`https://drive.google.com/thumbnail?id=${encodeURIComponent(p)}&sz=w${big?1600:400}`;
+let toastT; function toast(m,k){const t=$('#toast');t.textContent=m;t.className='toast'+(k==='bad'?' bad':'');t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3000);}
+function parsePhotos(v){if(Array.isArray(v))return v;if(!v)return[];try{const a=JSON.parse(v);return Array.isArray(a)?a:[];}catch(e){return String(v).split(/[,;\s]+/).filter(Boolean);}}
+const normF=f=>Object.assign({},f,{lat:parseFloat(f.lat),lng:parseFloat(f.lng),description:f.description||f.commentaire||'',photos:parsePhotos(f.photos),vendeur:f.vendeur||''});
+const CDP_COLOR='#4dabf7';
+function parseList(v){if(Array.isArray(v))return v;const s=String(v||'').trim();if(!s)return[];if(s[0]==='['){try{const a=JSON.parse(s);if(Array.isArray(a))return a;}catch(e){}}return s.split(',').map(x=>x.trim()).filter(Boolean);}
+function normP(p){let t=p.trace;if(typeof t==='string'){try{t=JSON.parse(t);}catch(e){t=[];}}if(!Array.isArray(t))t=[];
+  const nested=t.length>0&&Array.isArray(t[0])&&Array.isArray(t[0][0]);
+  const poly=(!nested&&p.mode==='zone'&&t.length>=3)?t:null;
+  const segs=poly?[]:(nested?t:(t.length?[t]:[])).filter(g=>g&&g.length);
+  return Object.assign({},p,{trace:t,segs,poly,pts:poly?poly.slice():segs.flat(),len:segs.reduce((a,g)=>a+pathLen(g),0),
+    avec:parseList(p.avec),secteurId:p.secteurId||'',operation:p.operation||'',quantite:p.quantite===''||p.quantite==null?'':Number(p.quantite)});}
+function normS(z){let zone=z.zone;if(typeof zone==='string'){try{zone=JSON.parse(zone);}catch(e){zone=[];}}return Object.assign({},z,{zone:Array.isArray(zone)?zone:[]});}
+function normD(z){let t=z.trace;if(typeof t==='string'){try{t=JSON.parse(t);}catch(e){t=[];}}if(!Array.isArray(t))t=[];
+  const ligne=z.forme==='ligne';return Object.assign({},z,{trace:t,forme:ligne?'ligne':'zone',statut:z.statut||'a_faire',ville:z.ville||'Sans ville',segs:ligne?t.filter(g=>Array.isArray(g)&&g.length>1):[],poly:ligne?null:t});}
+function opKey(d){const x=new Date(d);return'cdp-'+x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
+
+/* ---------- État ---------- */
+const S={user:null,code:'',team:[],fiches:[],prospections:[],hidden:new Set(LS.get('cc_hidden',[])),
+  types:new Set(Object.keys(TYPES)),showF:true,showP:true,showO:true,showS:true,showD:LS.get('cc_showD',false),distHidden:new Set(LS.get('cc_distHidden',[])),distOpen:new Set(),distrib:[],editDist:null,secteurs:[],ops:[],draw:null,editSect:null,tab:'equipe',map:null,layer:null,byId:{},fitted:false,editing:null};
+const isAdmin=()=>S.user&&S.user.role==='admin';
+
+/* ---------- API ---------- */
+async function api(action,extra){
+  const body=Object.assign({action},S.user?{nom:S.user.nom,code:S.code}:{},extra||{});
+  if(!API_URL) return demoApi(body);
+  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'},redirect:'follow'});
+  const j=await r.json(); if(!j.ok){const e=new Error(j.error||'Erreur serveur');e.server=true;throw e;} return j;
+}
+function demoTeam(){let t=LS.get('pp_demo_team',null);if(!t){t=DEMO_TEAM;LS.set('pp_demo_team',t);}
+  if(t.some(x=>x.nom==='Younes')){t=t.filter(x=>x.nom!=='Younes');LS.set('pp_demo_team',t);}return t;}
+const pub=c=>({nom:c.nom,couleur:c.couleur,role:c.role,statut:c.statut,actif:c.actif,avecCode:!!c.code});
+async function demoApi(b){
+  const fail=m=>{const e=new Error(m);e.server=true;throw e;};
+  const team=demoTeam();
+  if(b.action==='equipe')return{ok:true,equipe:team.map(pub)};
+  const me=team.find(x=>x.nom===b.nom&&x.actif); if(!me||(me.code&&me.code!==String(b.code||'').trim()))fail('Nom ou code incorrect');
+  let d=LS.get('pp_demo',null); if(!d){d=seedDemo();LS.set('pp_demo',d);} if(!d.v4){applyMyMaps(d);LS.set('pp_demo',d);}
+  const adm=me.role==='admin';
+  switch(b.action){
+    case 'login':return{ok:true,user:{nom:me.nom,role:me.role},equipe:team.map(pub)};
+    case 'data':{const mineS=new Set(d.secteurs.filter(z=>z.conseiller===me.nom).map(z=>z.id));
+      return{ok:true,fiches:d.fiches.filter(f=>adm||f.conseiller===me.nom),
+        prospections:d.prospections.filter(p=>adm||p.conseiller===me.nom||parseList(p.avec).includes(me.nom)||(p.secteurId&&mineS.has(p.secteurId))),
+        secteurs:d.secteurs.filter(z=>z.actif!=='non'),operations:d.operations,distribution:d.distribution.filter(z=>z.actif!=='non')};}
+    case 'saveDistrib':{if(!adm)fail('Réservé à la direction');const z=b.zone;const i=d.distribution.findIndex(x=>x.id===z.id);
+      if(i>-1)Object.assign(d.distribution[i],z);else d.distribution.push(Object.assign({actif:'oui'},z));LS.set('pp_demo',d);return{ok:true,distribution:d.distribution.filter(z=>z.actif!=='non')};}
+    case 'deleteDistrib':{if(!adm)fail('Réservé à la direction');const z=d.distribution.find(x=>x.id===b.id);if(z)z.actif='non';LS.set('pp_demo',d);return{ok:true,distribution:d.distribution.filter(z=>z.actif!=='non')};}
+    case 'saveSecteur':{if(!adm)fail('Réservé à la direction');const z=b.secteur;if(!String(z.nom||'').trim())fail('Donnez un nom au secteur');
+      const i=d.secteurs.findIndex(x=>x.id===z.id);const row=Object.assign({actif:'oui',cree:new Date().toISOString()},i>-1?d.secteurs[i]:{},z);
+      if(i>-1)d.secteurs[i]=row;else d.secteurs.push(row);LS.set('pp_demo',d);return{ok:true,secteurs:d.secteurs.filter(z=>z.actif!=='non')};}
+    case 'deleteSecteur':{if(!adm)fail('Réservé à la direction');const z=d.secteurs.find(x=>x.id===b.id);if(z)z.actif='non';LS.set('pp_demo',d);return{ok:true,secteurs:d.secteurs.filter(z=>z.actif!=='non')};}
+    case 'add':{const it=Object.assign({},b.item);if(!(adm&&team.some(x=>x.nom===it.conseiller)))it.conseiller=me.nom;
+      const arr=b.kind==='fiche'?d.fiches:d.prospections;if(!arr.some(x=>x.id===it.id))arr.push(it);LS.set('pp_demo',d);return{ok:true};}
+    case 'delete':{const k=b.kind==='fiche'?'fiches':'prospections';const it=d[k].find(x=>x.id===b.id);
+      if(it&&!(adm||it.conseiller===me.nom))fail('Vous ne pouvez supprimer que vos propres saisies');d[k]=d[k].filter(x=>x.id!==b.id);LS.set('pp_demo',d);return{ok:true};}
+    case 'saveOperation':{if(!adm)fail('Réservé à la direction');const o=b.operation;const i=d.operations.findIndex(x=>x.id===o.id);
+      if(i>-1)Object.assign(d.operations[i],o);else d.operations.push(o);LS.set('pp_demo',d);return{ok:true,operations:d.operations};}
+    case 'team':if(!adm)fail('Réservé à la direction');return{ok:true,team:team.map(c=>Object.assign(pub(c),{code:c.code?'••••':''}))};
+    case 'saveMember':{if(!adm)fail('Réservé à la direction');const m=b.member;const nom=String(m.nom||'').trim();if(!nom)fail('Le nom est obligatoire');
+      const i=team.findIndex(x=>x.nom===nom);const old=i>-1?team[i]:null;const role=m.role==='admin'?'admin':'conseiller';
+      const code=role==='admin'?(String(m.code||'').trim()||(old?old.code:'')):'';if(role==='admin'&&code.length<4)fail("Un code d'au moins 4 caractères est obligatoire pour l'accès direction");
+      if(nom===me.nom&&(m.role!=='admin'||m.actif===false))fail('Vous ne pouvez pas retirer vos propres droits');
+      const row={nom,code,role,couleur:m.couleur,actif:m.actif!==false,statut:m.statut};
+      if(i>-1)team[i]=row;else team.push(row);LS.set('pp_demo_team',team);return{ok:true,team:team.map(c=>Object.assign(pub(c),{code:c.code?'••••':''}))};}
+  }
+  fail('Action inconnue');
+}
+function seedDemo(){
+  const now=Date.now(),H=36e5,D=24*H,c=[48.9386,2.4975];
+  const at=(dy,dx)=>[+(c[0]+dy).toFixed(5),+(c[1]+dx).toFixed(5)];
+  const f=(t,who,type,p,x)=>Object.assign({id:uid(),date:new Date(now-t).toISOString(),conseiller:who,type,lat:p[0],lng:p[1],precision:8,adresse:'',vendeur:'',agence:'',telephone:'',contact:'',description:'',photos:[],manuel:false},x);
+  const fiches=[
+    f(2*H,'Samuel','panneau_av',at(.0031,.0042),{vendeur:'agence',adresse:'Rue Jules Princet, Aulnay-sous-Bois',agence:'Agence concurrente (exemple)',telephone:'01 00 00 00 00',description:'Exemple — pavillon, panneau neuf'}),
+    f(5*H,'Samuel','info_vente',at(.0012,.0065),{adresse:'Allée des Tilleuls, Aulnay-sous-Bois',contact:'Voisin (exemple)',description:'Exemple — la voisine du 12 part en province au printemps'}),
+    f(3*H,'Vahé','rdv_estim',at(-.0110,.0035),{adresse:'Rue de Bondy, Aulnay-sous-Bois',contact:'M. Exemple',description:'Exemple — appartement T3, RDV samedi 10h'}),
+    f(1*D+2*H,'Vahé','panneau_vendu',at(-.0128,.0062),{vendeur:'particulier',adresse:'Allée Exemple, Aulnay-sous-Bois',description:'Exemple — vendu entre particuliers'}),
+    f(1*D+3*H,'Warner','rdv_estim',at(-.0042,-.0021),{adresse:'Avenue de Nonneville, Aulnay-sous-Bois',contact:'Mme Exemple',description:'Exemple — RDV pris pour jeudi'}),
+    f(2*D,'Warner','panneau_vendu',at(-.0060,.0018),{vendeur:'agence',adresse:'Rue de Sevran, Aulnay-sous-Bois',agence:'Réseau mandataires (exemple)'}),
+    f(3*D,'Lilian','en_vente',at(.0071,-.0052),{vendeur:'agence',adresse:'Boulevard de Strasbourg, Aulnay-sous-Bois',agence:'Agence locale (exemple)',description:'Exemple — affiché depuis longtemps'}),
+    f(4*D,'Lilian','info_vente',at(.0092,-.0081),{adresse:'Rue Exemple, Aulnay-sous-Bois',description:'Exemple — couple qui cherche plus grand'}),
+    f(4*D,'Dionis','vendu',at(-.0018,.0091),{vendeur:'particulier',contact:'Propriétaire (exemple)',adresse:'Rue Anatole France, Aulnay-sous-Bois',description:'Exemple — vendu en 3 semaines'}),
+    f(6*D,'Dionis','a_vendre',at(.0049,.0110),{vendeur:'particulier',adresse:'Rue de Mitry, Aulnay-sous-Bois',contact:'Mme Exemple',description:'Exemple — succession, réflexion en cours'}),
+  ];
+  const d={fiches,prospections:[]};applyMyMaps(d);return d;
+}
+/* Les cartes My Maps remplacent les exemples de secteurs et de prospections */
+function applyMyMaps(d){
+  const ex=p=>/^Exemple/.test(p.commentaire||'')||/^s-ex/.test(p.secteurId||'')||/^mm-/.test(p.id);
+  d.prospections=(d.prospections||[]).filter(p=>!ex(p)).concat(JSON.parse(JSON.stringify(MYMAPS.prospections)));
+  d.secteurs=JSON.parse(JSON.stringify(MYMAPS.secteurs));d.distribution=JSON.parse(JSON.stringify(MYMAPS.distribution));
+  d.operations=d.operations||[];d.v2=true;d.v3=true;d.v4=true;
+}
+/* ---------- Connexion ---------- */
+async function showLogin(){
+  $('#shell').hidden=true;$('#login').hidden=false;$('#demoBanner').hidden=!!API_URL;
+  const sel=$('#lgNom');sel.innerHTML='<option value="">Chargement…</option>';
+  try{const eq=(await api('equipe')).equipe.filter(x=>x.actif!==false);
+    const last=LS.get('cc_lastnom','');
+    S.loginEq=eq;
+    sel.innerHTML='<option value="">Choisir…</option>'+eq.sort((a,b)=>(a.role==='admin'?-1:0)-(b.role==='admin'?-1:0)).map(x=>`<option${x.nom===last?' selected':''}>${esc(x.nom)}</option>`).join('');
+    updCodeField();
+  }catch(e){$('#lgErr').hidden=false;$('#lgErr').textContent='Connexion au serveur impossible.';}
+}
+function updCodeField(){const m=(S.loginEq||[]).find(x=>x.nom===$('#lgNom').value);$('#lgCodeF').hidden=!(m&&m.avecCode);}
+$('#lgNom').addEventListener('change',updCodeField);
+$('#loginForm').addEventListener('submit',async ev=>{
+  ev.preventDefault();const nom=$('#lgNom').value,code=$('#lgCode').value.trim();$('#lgErr').hidden=true;if(!nom)return;
+  if(!$('#lgCodeF').hidden&&!code){$('#lgCode').focus();return;}
+  $('#lgBtn').disabled=true;
+  try{const j=await api('login',{nom,code});S.user=j.user;S.code=code;S.team=j.equipe;
+    LS.set('cc_session',{user:S.user,code});LS.set('cc_lastnom',nom);$('#lgCode').value='';enter();}
+  catch(e){$('#lgErr').hidden=false;$('#lgErr').textContent=e.server?e.message:'Connexion au serveur impossible.';}
+  $('#lgBtn').disabled=false;
+});
+$('#btnLogout').addEventListener('click',()=>{LS.del('cc_session');S.user=null;S.fitted=false;showLogin();});
+
+function enter(){
+  $('#login').hidden=true;$('#shell').hidden=false;
+  document.querySelectorAll('.tabs .adm').forEach(b=>b.hidden=!isAdmin());
+  const mc=colorOf(S.user.nom);$('#whoAv').textContent=initials(S.user.nom);$('#whoAv').style.setProperty('--c',isAdmin()&&S.user.nom==='Direction'?'#18181a':mc);$('#whoAv').style.setProperty('--tc',textOn(isAdmin()&&S.user.nom==='Direction'?'#18181a':mc));$('#whoName').textContent=S.user.nom;
+  buildChips();initMap();refresh();
+}
+
+/* ---------- Données ---------- */
+function setSync(s,txt){const el=$('#sync');el.className='sync'+(s?' '+s:'');$('#syncTxt').textContent=txt;}
+async function refresh(){
+  setSync('load','Mise à jour…');
+  try{
+    const [d,t]=await Promise.all([api('data'),isAdmin()?api('team'):Promise.resolve(null)]);
+    S.fiches=d.fiches.map(normF);S.prospections=d.prospections.map(normP);S.secteurs=(d.secteurs||[]).map(normS);S.ops=d.operations||[];S.distrib=(d.distribution||[]).map(normD);
+    if(t)S.team=t.team;
+    setSync('',(API_URL?'À jour ':'Démo · ')+fmtH(Date.now()));
+  }catch(e){
+    if(e.server&&/code|nom/i.test(e.message)){toast('Session expirée','bad');LS.del('cc_session');showLogin();return;}
+    setSync('err','Hors ligne');
+  }
+  render();
+}
+setInterval(()=>{if(S.user&&document.visibilityState==='visible')refresh();},60000);
+$('#btnRefresh').addEventListener('click',refresh);
+
+function member(nom){return S.team.find(x=>x.nom===nom)||{nom,couleur:'#868e96',statut:'Conseiller',actif:false,role:'conseiller'};}
+const colorOf=nom=>member(nom).couleur||'#868e96';
+function periodStart(){const p=$('#periode').value;if(p==='tout')return 0;const d=new Date();d.setHours(0,0,0,0);if(p==='jour')return d.getTime();d.setDate(d.getDate()-(Number(p)-1));return d.getTime();}
+function inPeriod(){const from=periodStart();
+  return{f:S.fiches.filter(x=>new Date(x.date).getTime()>=from),p:S.prospections.filter(x=>new Date(x.debut).getTime()>=from)};}
+function visible(){const {f,p}=inPeriod();
+  return{f:S.showF?f.filter(x=>!S.hidden.has(x.conseiller)&&S.types.has(x.type)&&!isNaN(x.lat)):[],
+         p:p.filter(x=>!S.hidden.has(x.conseiller)&&x.pts.length&&(x.operation?S.showO:S.showP))};}
+
+/* ---------- Carte ---------- */
+/* Fonds de carte sans clé d'accès : Plan (Esri) et Satellite (Esri), avec bascule */
+function addBase(map){
+  const at='Fond © Esri, HERE, Garmin, © contributeurs OpenStreetMap';
+  const plan=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{attribution:at,maxNativeZoom:19,maxZoom:20});
+  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Imagerie © Esri, Maxar, Earthstar Geographics',maxNativeZoom:19,maxZoom:20});
+  const noms=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,maxZoom:20});
+  let pref='plan'; try{ pref=localStorage.getItem('pp_fond')||'plan'; }catch(e){}
+  const satGroup=L.layerGroup([sat,noms]);
+  (pref==='sat'?satGroup:plan).addTo(map);
+  L.control.layers({'Plan':plan,'Satellite':satGroup},null,{position:'topright',collapsed:false}).addTo(map);
+  map.on('baselayerchange',e=>{ try{ localStorage.setItem('pp_fond',e.name==='Satellite'?'sat':'plan'); }catch(err){} });
+}
+function initMap(){
+  if(S.map){setTimeout(()=>S.map.invalidateSize(),50);return;}
+  if(!window.L){$('#map').innerHTML='<div class="empty" style="margin:20px">La carte ne peut pas se charger (pas de connexion internet).</div>';return;}
+  S.map=L.map('map',{zoomControl:false}).setView([48.9386,2.4975],14);
+  L.control.zoom({position:'bottomright'}).addTo(S.map);
+  addBase(S.map);
+  S.layer=L.layerGroup().addTo(S.map);
+}
+function pinIcon(x){const c=colorOf(x.conseiller),t=TYPES[x.type]||{ab:'?'};
+  return L.divIcon({className:'',iconSize:[30,30],iconAnchor:[15,30],popupAnchor:[0,-28],
+    html:`<div class="pin" style="--c:${c};--tc:${textOn(c)}"><span>${t.ab}</span></div>`});}
+function vendTxt(x){if(x.vendeur==='particulier')return'<span class="vend part">Particulier</span>';
+  if(x.vendeur==='agence'||x.agence)return'<span class="vend">Agence</span>'+esc([x.agence,x.telephone].filter(Boolean).join(' · '));return'';}
+function who(nom){return`<span class="who" style="--c:${colorOf(nom)}"><i></i>${esc(nom)}</span>`;}
+function popF(x){const t=TYPES[x.type]||{label:x.type};
+  return`<div class="pp"><b>${esc(t.label)}</b><br>${who(x.conseiller)} <span class="k">· ${esc(fmtFull(x.date))}</span>
+  ${x.adresse?`<br>${esc(x.adresse)}`:''}${vendTxt(x)?`<br>${vendTxt(x)}`:''}${x.contact?`<br><span class="k">Contact :</span> ${esc(x.contact)}`:''}
+  ${x.description?`<br><i>${esc(x.description)}</i>`:''}
+  ${x.photos.length?`<div class="phs">${x.photos.map(p=>`<img src="${esc(photoUrl(p))}" data-photo="${esc(p)}" onclick="openLb(this.dataset.photo)" alt="Photo">`).join('')}</div>`:''}
+  <br><a href="https://www.google.com/maps/dir/?api=1&destination=${x.lat},${x.lng}" target="_blank" rel="noopener">Itinéraire</a></div>`;}
+function opName(k){const o=S.ops.find(x=>x.id===k);return o&&o.nom?o.nom:'Coup de poing du '+new Date(k.slice(4,14)+'T12:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'});}
+function popP(x){const p=PROSPE[x.type]||{label:x.type,qty:'Quantité'};const ms=new Date(x.fin)-new Date(x.debut);
+  return`<div class="pp">${x.operation?`<span class="k" style="color:#1c7ed6;font-weight:700">● ${esc(opName(x.operation))}</span><br>`:''}<b>${esc(p.label)}</b> — ${esc(x.secteur)}<br>${who(x.conseiller)} <span class="k">· ${esc(fmtFull(x.debut))}${ms>60000?' → '+fmtH(x.fin):''}</span>
+  ${x.avec.length?`<br><span class="k">Fait avec :</span> ${esc(x.avec.join(', '))}`:''}${x.len>0?`<br>${km(x.len)} km parcourus`:''}${(isAdmin()||x.conseiller===S.user.nom)?`<br><button type="button" class="delp" onclick="delP('${esc(x.id)}',this)">Supprimer ce tracé</button>`:''}${x.quantite!==''?`<br>${esc(p.qty)} : <b>${esc(x.quantite)}</b>`:''}${x.commentaire?`<br><i>${esc(x.commentaire)}</i>`:''}</div>`;}
+function renderMap(){
+  if(!S.map)return;S.layer.clearLayers();S.byId={};
+  const {f,p}=visible(),now=Date.now(),pts=[],ia=!S.draw;
+  if(S.showD)renderDistLayer(ia);
+  if(S.showS)S.secteurs.forEach(z=>{if(z.zone.length<3)return;
+    L.polygon(z.zone,{color:colorOf(z.conseiller||''),weight:2,opacity:.9,fillOpacity:.07,interactive:false}).addTo(S.layer)
+      .bindTooltip(esc(z.nom)+(z.conseiller?' · '+esc(z.conseiller):''),{permanent:true,direction:'center',className:'sect-lbl'});});
+  p.slice().sort((a,b)=>(!!a.operation-!!b.operation)||(a.debut<b.debut?-1:1)).forEach(x=>{
+    const isOp=!!x.operation,c=isOp?CDP_COLOR:colorOf(x.conseiller),age=(now-new Date(x.debut))/864e5,op=isOp?.95:(age<7?.85:age<30?.6:.38),dash=isOp?null:(PROSPE[x.type]||{}).dash;
+    let l;const lines=x.segs.filter(g=>g.length>1);
+    if(x.poly)l=L.polygon(x.poly,{color:c,weight:3,opacity:op,fillOpacity:op*.35,dashArray:dash,interactive:ia});
+    else if(lines.length)l=L.polyline(lines,{color:c,weight:isOp?9:8,opacity:op,lineCap:'round',lineJoin:'round',dashArray:dash,interactive:ia});
+    else l=L.circle(x.pts[0],{radius:50,color:c,weight:2,opacity:op,fillOpacity:op*.3,interactive:ia});
+    const base=l.options.weight;
+    l.bindTooltip(`<b>${esc(x.conseiller)}</b>${isOp?' · '+esc(opName(x.operation)):''}<br>${esc((PROSPE[x.type]||{label:x.type}).label)} · ${esc(fmtDay(x.debut))}`,{sticky:true});
+    l.on('mouseover',()=>l.setStyle({weight:base+5}));l.on('mouseout',()=>l.setStyle({weight:base}));
+    l.bindPopup(popP(x)).addTo(S.layer);S.byId[x.id]=l;x.pts.forEach(t=>pts.push(t));
+  });
+  if(S.draw)drawPreview();
+  f.forEach(x=>{const m=L.marker([x.lat,x.lng],{icon:pinIcon(x),riseOnHover:true,interactive:ia,keyboard:ia}).bindPopup(popF(x),{maxWidth:280}).addTo(S.layer);S.byId[x.id]=m;pts.push([x.lat,x.lng]);});
+  S.lastPts=pts;
+  if(!S.fitted&&pts.length){S.map.fitBounds(pts,{padding:[40,40],maxZoom:16});S.fitted=true;}
+}
+$('#btnFit').addEventListener('click',()=>{if(S.map&&S.lastPts&&S.lastPts.length)S.map.fitBounds(S.lastPts,{padding:[40,40],maxZoom:16});else toast('Rien à afficher sur cette période');});
+$('#lyrF').addEventListener('click',e=>{S.showF=!S.showF;e.currentTarget.setAttribute('aria-pressed',S.showF);render();});
+$('#lyrP').addEventListener('click',e=>{S.showP=!S.showP;e.currentTarget.setAttribute('aria-pressed',S.showP);render();});
+$('#lyrO').addEventListener('click',e=>{S.showO=!S.showO;e.currentTarget.setAttribute('aria-pressed',S.showO);render();});
+$('#lyrS').addEventListener('click',e=>{S.showS=!S.showS;e.currentTarget.setAttribute('aria-pressed',S.showS);render();});
+function setShowD(v){S.showD=v;LS.set('cc_showD',v);$('#lyrD').setAttribute('aria-pressed',v);}
+$('#lyrD').addEventListener('click',()=>{setShowD(!S.showD);render();});
+function renderLegend(){
+  $('#legend').innerHTML=Object.values(TYPES).map(t=>`<span><span class="ab">${t.ab}</span>${esc(t.label)}</span>`).join('')+
+    Object.values(PROSPE).map(p=>`<span><span class="ln" style="${p.dash?`border-top-style:${p.dash.startsWith('2')?'dotted':'dashed'}`:''}"></span>${esc(p.label)}</span>`).join('')+
+    `<span><span class="ln" style="border-top-color:${CDP_COLOR};border-top-width:6px"></span>Coup de poing</span><span><span class="ln" style="border-top-width:2px"></span>Secteur</span>`+
+    (S.showD?Object.entries(villeColors()).map(([v,c])=>`<span><span class="swatch" style="--c:${c};border-radius:4px"></span>Distributeur · ${esc(v)}</span>`).join('')+`<span><span class="ln" style="border-top-color:#212529;border-top-width:3px"></span>Rues à distribuer</span>`:'');
+}
+
+/* ---------- Chiffres ---------- */
+function renderKpis(){
+  const {f,p}=visible();const lead=['info_vente','rdv_estim','a_vendre'];
+  const k=[[f.length,'Infos'],[f.filter(x=>lead.includes(x.type)).length,'Ventes / RDV'],[f.filter(x=>x.type.startsWith('panneau')).length,'Panneaux'],[p.length,'Prospections'],[km(p.reduce((s,x)=>s+x.len,0)),'km']];
+  $('#kpis').innerHTML=k.map(([v,l],i)=>`<div class="kpi${i===1?' main':''}"><strong>${v}</strong><span>${l}</span></div>`).join('');
+}
+
+/* ---------- Équipe ---------- */
+function renderMembers(){
+  const {f,p}=inPeriod();const showOld=$('#showInactifs').checked;
+  const names=[...new Set([...S.team.filter(m=>m.role!=='admin'||f.some(x=>x.conseiller===m.nom)).filter(m=>m.actif!==false||showOld).map(m=>m.nom),
+    ...(showOld?[...f,...p].map(x=>x.conseiller):[])])];
+  if(!names.length){$('#members').innerHTML='<div class="empty">Aucun membre dans l\'équipe.</div>';return;}
+  const maxAct=Math.max(1,...names.map(n=>f.filter(x=>x.conseiller===n).length+p.filter(x=>x.conseiller===n).length));
+  const CK='<span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg></span>';
+  const ZM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2M11 8v6M8 11h6"/></svg>';
+  $('#members').innerHTML=names.map(n=>{const m=member(n),on=!S.hidden.has(n),mf=f.filter(x=>x.conseiller===n),mp=p.filter(x=>x.conseiller===n);
+    const last=[...mf.map(x=>x.date),...mp.map(x=>x.debut)].sort().pop();
+    const lead=mf.filter(x=>['info_vente','rdv_estim','a_vendre'].includes(x.type)).length;
+    return`<div class="member${on?'':' off'}" data-row="${esc(n)}" style="--c:${m.couleur};--tc:${textOn(m.couleur)}">
+      <button class="av" type="button" data-tog="${esc(n)}" aria-pressed="${on}" aria-label="${on?'Masquer':'Afficher'} ${esc(n)} sur la carte">${esc(initials(n))}${CK}</button>
+      <div style="min-width:0"><div class="mname">${esc(n)}${m.statut&&m.statut!=='Conseiller'?`<span class="statut ${esc(m.statut)}">${esc(m.statut)}</span>`:''}${m.actif===false?'<span class="statut">Ancien</span>':''}</div>
+        <div class="mstats"><span><b>${mf.length}</b> info${mf.length>1?'s':''}</span><span><b>${lead}</b> ventes/RDV</span><span><b>${mp.length}</b> prosp.</span><span>${last?ago(last):'aucune activité'}</span></div>
+        <div class="meter"><i style="width:${Math.round(100*(mf.length+mp.length)/maxAct)}%"></i></div></div>
+      <button class="zoombtn" type="button" data-zoom="${esc(n)}" title="Centrer la carte sur ${esc(n)}" aria-label="Centrer la carte sur ${esc(n)}" ${mf.length+mp.length?'':'disabled'}>${ZM}</button></div>`;}).join('');
+}
+$('#members').addEventListener('click',e=>{
+  const z0=e.target.closest('[data-zoom]');
+  const t=z0?null:e.target.closest('[data-row]');if(t){const n=t.dataset.row;S.hidden.has(n)?S.hidden.delete(n):S.hidden.add(n);LS.set('cc_hidden',[...S.hidden]);render();return;}
+  const z=e.target.closest('[data-zoom]');if(z&&S.map){const n=z.dataset.zoom;S.hidden.delete(n);LS.set('cc_hidden',[...S.hidden]);render();
+    const pts=S.lastPts.filter((_,i)=>true);const own=[];Object.values(visible()).flat().forEach(x=>{if(x.conseiller===n){if(x.pts)x.pts.forEach(t=>own.push(t));else own.push([x.lat,x.lng]);}});
+    if(own.length)S.map.fitBounds(own,{padding:[50,50],maxZoom:17});}
+});
+$('#allOn').addEventListener('click',()=>{S.hidden.clear();LS.set('cc_hidden',[]);render();});
+$('#allOff').addEventListener('click',()=>{S.team.forEach(m=>S.hidden.add(m.nom));[...S.fiches,...S.prospections].forEach(x=>S.hidden.add(x.conseiller));LS.set('cc_hidden',[...S.hidden]);render();});
+$('#showInactifs').addEventListener('change',render);
+
+/* ---------- Activité ---------- */
+function buildChips(){$('#typeChips').innerHTML=Object.entries(TYPES).map(([k,t])=>`<button type="button" class="chip" data-ty="${k}" aria-pressed="${S.types.has(k)}"><span class="ab">${t.ab}</span>${esc(t.label)}</button>`).join('');}
+$('#typeChips').addEventListener('click',e=>{const b=e.target.closest('[data-ty]');if(!b)return;const k=b.dataset.ty;S.types.has(k)?S.types.delete(k):S.types.add(k);b.setAttribute('aria-pressed',S.types.has(k));render();});
+let sT;$('#search').addEventListener('input',()=>{clearTimeout(sT);sT=setTimeout(renderFeed,200);});
+function renderFeed(){
+  const {f,p}=visible();const q=$('#search').value.trim().toLowerCase();
+  const match=o=>!q||Object.values(o).some(v=>typeof v==='string'&&!v.startsWith('data:')&&v.toLowerCase().includes(q));
+  const rows=[...f.filter(match).map(x=>({k:'f',d:x.date,x})),...p.filter(match).map(x=>({k:'p',d:x.debut,x}))].sort((a,b)=>a.d<b.d?1:-1).slice(0,300);
+  if(!rows.length){$('#feed').innerHTML=`<div class="empty">${S.fiches.length+S.prospections.length?'Rien sur cette période avec ces filtres.':'Aucun pointage pour le moment. Les saisies des conseillers apparaîtront ici dès leur envoi.'}</div>`;return;}
+  let h='',day='';
+  rows.forEach(({k,x,d})=>{const dl=fmtDay(d);if(dl!==day){day=dl;h+=`<div class="day">${esc(dl)}</div>`;}
+    if(k==='f'){const t=TYPES[x.type]||{label:x.type};
+      h+=`<div class="ev" style="--c:${colorOf(x.conseiller)}" data-go="${x.id}" tabindex="0"><span class="bar"></span><div><div class="l1"><span class="t">${esc(t.label)}</span><span class="h">${fmtH(x.date)}</span></div>
+      <div class="m"><b style="color:var(--fg)">${esc(x.conseiller)}</b> · ${esc(x.adresse||x.lat.toFixed(5)+', '+x.lng.toFixed(5))}</div>
+      ${vendTxt(x)?`<div class="m">${vendTxt(x)}</div>`:''}${x.description?`<div class="d">${esc(x.description)}</div>`:''}
+      ${x.photos.length?`<div class="phs">${x.photos.map(ph=>`<img src="${esc(photoUrl(ph))}" alt="" loading="lazy">`).join('')}</div>`:''}</div></div>`;}
+    else{const pp=PROSPE[x.type]||{label:x.type,qty:'Quantité'};
+      h+=`<div class="ev" style="--c:${x.operation?CDP_COLOR:colorOf(x.conseiller)}" data-go="${x.id}" tabindex="0"><span class="bar"></span><div><div class="l1"><span class="t">${esc(x.operation?opName(x.operation):pp.label)} — ${esc(x.secteur)}</span><span class="h">${fmtH(x.debut)}</span></div>
+      <div class="m"><b style="color:var(--fg)">${esc(x.conseiller)}</b>${x.avec.length?' avec '+esc(x.avec.join(', ')):''}${x.len>0?' · '+km(x.len)+' km':''}${x.quantite!==''?` · ${esc(pp.qty)} : ${esc(x.quantite)}`:''}</div></div></div>`;}
+  });
+  $('#feed').innerHTML=h;
+}
+function goTo(id){const l=S.byId[id];if(!l||!S.map)return;if(l.getLatLng)S.map.setView(l.getLatLng(),18);else S.map.fitBounds(l.getBounds(),{maxZoom:18,padding:[40,40]});l.openPopup();
+  if(window.innerWidth<=900)document.querySelector('.mapwrap').scrollIntoView({behavior:'smooth'});}
+$('#feed').addEventListener('click',e=>{const r=e.target.closest('[data-go]');if(r)goTo(r.dataset.go);});
+$('#feed').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.closest('[data-go]');if(r)goTo(r.dataset.go);}});
+
+/* ---------- Gestion de l'équipe ---------- */
+function renderTeam(){
+  if(!isAdmin())return;
+  const order={Direction:0,Conseiller:1,Alternant:2,Stagiaire:3};
+  const list=S.team.slice().sort((a,b)=>(a.actif===false)-(b.actif===false)||(order[a.statut]??9)-(order[b.statut]??9)||a.nom.localeCompare(b.nom));
+  $('#teamList').innerHTML=list.map(m=>`<div class="trow" style="--c:${m.couleur};--tc:${textOn(m.couleur)}"><span class="av" style="cursor:default">${esc(initials(m.nom))}</span>
+    <div><div class="mname">${esc(m.nom)} <span class="statut ${esc(m.statut)}">${esc(m.statut)}</span>${m.role==='admin'?'<span class="statut">Accès direction</span>':''}${m.actif===false?'<span class="statut">Inactif</span>':''}</div>
+    <div class="note">${m.role==='admin'?'Connexion avec code':'Connexion avec le nom seul'}</div></div>
+    <button class="btn" type="button" data-edit="${esc(m.nom)}">Modifier</button></div>`).join('');
+}
+function palette(sel){
+  $('#mPal').innerHTML=COLORS.map(([n,c])=>`<button type="button" style="--c:${c}" data-c="${c}" title="${n}" aria-label="${n}" aria-pressed="${c===sel}"></button>`).join('')+
+    `<input type="color" id="mColor" value="${sel}" aria-label="Autre couleur">`;
+}
+$('#mPal').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(!b)return;$('#mColor').value=b.dataset.c;palette(b.dataset.c);});
+$('#mPal').addEventListener('input',e=>{if(e.target.id==='mColor')document.querySelectorAll('#mPal [data-c]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===e.target.value));});
+function openForm(m){
+  S.editing=m?m.nom:null;$('#memberForm').hidden=false;$('#mErr').hidden=true;
+  $('#formTitle').textContent=m?'Modifier '+m.nom:'Nouvelle personne';
+  $('#mNom').value=m?m.nom:'';$('#mNom').disabled=!!m;$('#mStatut').value=m?m.statut:'Conseiller';
+  $('#mAdmin').checked=m?m.role==='admin':false;
+  $('#mCode').value='';$('#mCode').placeholder=(m&&m.role==='admin')?'Laisser vide pour garder le code actuel':'4 caractères ou plus';updMCode();$('#mActif').checked=m?m.actif!==false:true;
+  const used=S.team.map(x=>x.couleur.toLowerCase());const free=(COLORS.find(([,c])=>!used.includes(c))||COLORS[0])[1];
+  palette(m?m.couleur:free);$('#memberForm').scrollIntoView({behavior:'smooth',block:'nearest'});(m?$('#mStatut'):$('#mNom')).focus();
+}
+$('#btnNew').addEventListener('click',()=>openForm(null));
+$('#mCancel').addEventListener('click',()=>{$('#memberForm').hidden=true;});
+$('#teamList').addEventListener('click',e=>{const b=e.target.closest('[data-edit]');if(b)openForm(S.team.find(x=>x.nom===b.dataset.edit));});
+function updMCode(){$('#mCodeF').hidden=!$('#mAdmin').checked;}
+$('#mAdmin').addEventListener('change',updMCode);
+$('#mStatut').addEventListener('change',()=>{if($('#mStatut').value==='Direction')$('#mAdmin').checked=true;updMCode();});
+$('#memberForm').addEventListener('submit',async e=>{
+  e.preventDefault();$('#mErr').hidden=true;
+  const nom=$('#mNom').value.trim();
+  if(!S.editing&&S.team.some(x=>x.nom.toLowerCase()===nom.toLowerCase())){$('#mErr').hidden=false;$('#mErr').textContent='Ce nom existe déjà. Ajoutez une initiale (ex. « Samuel B. »).';return;}
+  const wasAdmin=S.editing&&(S.team.find(x=>x.nom===S.editing)||{}).role==='admin';
+  if($('#mAdmin').checked&&!wasAdmin&&$('#mCode').value.trim().length<4){$('#mErr').hidden=false;$('#mErr').textContent="L'accès direction demande un code d'au moins 4 caractères.";return;}
+  const member={nom:S.editing||nom,statut:$('#mStatut').value,couleur:$('#mColor').value,code:$('#mCode').value.trim(),role:$('#mAdmin').checked?'admin':'conseiller',actif:$('#mActif').checked};
+  $('#mSave').disabled=true;
+  try{const j=await api('saveMember',{member});S.team=j.team;$('#memberForm').hidden=true;toast(`${member.nom} enregistré${S.editing?'':' — il peut se connecter à l\'application'}`);render();}
+  catch(err){$('#mErr').hidden=false;$('#mErr').textContent=err.server?err.message:'Enregistrement impossible : vérifiez la connexion.';}
+  $('#mSave').disabled=false;
+});
+
+/* ---------- Secteurs ---------- */
+function lastPass(id){const l=S.prospections.filter(x=>x.secteurId===id).map(x=>x.debut).sort().pop();return l;}
+function ageChip(d){if(!d)return'<span class="age r">jamais prospecté</span>';const j=Math.floor((Date.now()-new Date(d))/864e5);
+  const c=j<=14?'g':j<=45?'o':'r';return`<span class="age ${c}">dernier passage ${j<1?"aujourd'hui":j===1?'hier':'il y a '+j+' j'}</span>`;}
+function renderSecteurs(){
+  if(!isAdmin())return;const {p}=inPeriod();
+  const list=S.secteurs.slice().sort((a,b)=>(a.conseiller||'').localeCompare(b.conseiller||'')||a.nom.localeCompare(b.nom));
+  $('#sectList').innerHTML=list.length?list.map(z=>{const n=p.filter(x=>x.secteurId===z.id).length;
+    return`<div class="srow" style="--c:${colorOf(z.conseiller||'')}"><span class="swatch"></span>
+      <div style="min-width:0"><div class="mname">${esc(z.nom)}</div><div class="note">${z.conseiller?esc(z.conseiller):'Sans conseiller'} · ${n} passage${n>1?'s':''} sur la période</div><div style="margin-top:3px">${ageChip(lastPass(z.id))}</div></div>
+      <div class="acts"><button class="btn" type="button" data-sgo="${esc(z.id)}">Voir</button><button class="btn" type="button" data-sedit="${esc(z.id)}">Modifier</button><button class="btn ghost" type="button" data-sdel="${esc(z.id)}" style="color:var(--bad)">Supprimer</button></div></div>`;}).join('')
+    :'<div class="empty">Aucun secteur pour le moment. Créez le premier avec « + Nouveau secteur » : il apparaîtra dans la liste des conseillers sur Pros360.</div>';
+}
+function sectCons(sel){$('#sCons').innerHTML='<option value="">Aucun (secteur partagé)</option>'+S.team.filter(m=>m.role!=='admin'&&m.actif!==false).map(m=>`<option${m.nom===sel?' selected':''}>${esc(m.nom)}</option>`).join('');}
+function openSect(z){
+  S.editSect=z?z.id:null;$('#sectForm').hidden=false;$('#sErr').hidden=true;$('#sectTitle').textContent=z?'Modifier « '+z.nom+' »':'Nouveau secteur';
+  $('#sNom').value=z?z.nom:'';sectCons(z?z.conseiller:'');
+  $('#prospForm').hidden=true;startDraw({kind:'sect',pts:z?z.zone.map(p=>p.slice()):[]},'Cliquez pour poser les points du contour du secteur');
+  if(S.map&&z&&z.zone.length>=3)S.map.fitBounds(z.zone,{padding:[60,60]});
+  drawPreview();(z?$('#sNom'):$('#sNom')).focus();
+}
+function stopDraw(){S.draw=null;S.editSect=null;document.body.classList.remove('map-draw');$('#drawHint').hidden=true;$('#sectForm').hidden=true;$('#prospForm').hidden=true;$('#distForm').hidden=true;S.editDist=null;
+  ['drawShapes','drawVerts','drawRubber'].forEach(k=>S[k]&&S[k].clearLayers());if(S.map){S.map.doubleClickZoom.enable();renderMap();}}
+function startDraw(d,hint){S.draw=Object.assign({closed:false},d);if(S.map){S.map.closePopup();renderMap();}document.body.classList.add('map-draw');$('#drawHint').textContent=hint;$('#drawHint').hidden=false;if(S.map)S.map.doubleClickZoom.disable();}
+/* Dessin façon Google My Maps : on clique des points, un trait suit la souris, clic sur le premier point (ou double-clic) pour fermer, points déplaçables */
+const isPoly=d=>d.kind==='sect'||d.shape==='zone';
+function drawColor(d){if(d.kind==='dist')return d.shape==='ligne'?'#212529':villeColor($('#dVille').value.trim());return d.kind==='sect'?colorOf($('#sCons').value||''):($('#prCdp').checked?CDP_COLOR:colorOf($('#prCons').value||''));}
+function drawLayers(){if(!S.map)return false;['drawShapes','drawVerts','drawRubber'].forEach(k=>{if(!S[k])S[k]=L.layerGroup().addTo(S.map);});return true;}
+function drawShapes(){
+  const d=S.draw;S.drawShapes.clearLayers();S.drawRubber.clearLayers();if(!d)return;const col=drawColor(d);
+  if(isPoly(d)){const pts=d.pts,dash=null;
+    if(pts.length>=3&&d.closed)L.polygon(pts,{color:col,weight:3,dashArray:dash,fillOpacity:d.kind==='sect'?.15:.28,interactive:false}).addTo(S.drawShapes);
+    else if(pts.length>=2)L.polyline(pts,{color:col,weight:3,dashArray:dash,interactive:false}).addTo(S.drawShapes);
+    if(pts.length>=3&&!d.closed)L.polygon(pts,{stroke:false,fillColor:col,fillOpacity:.12,interactive:false}).addTo(S.drawShapes);
+  }else d.segs.forEach(g=>{if(g.length>1)L.polyline(g,{color:col,weight:8,opacity:.9,lineCap:'round',lineJoin:'round',interactive:false}).addTo(S.drawShapes);});
+}
+function drawPreview(){
+  if(!drawLayers())return;const d=S.draw;S.drawVerts.clearLayers();drawShapes();if(!d)return;
+  const col=drawColor(d),lists=isPoly(d)?[d.pts]:d.segs;
+  lists.forEach(arr=>arr.forEach((p,i)=>{
+    const first=isPoly(d)&&i===0&&arr.length>=3&&!d.closed;
+    const m=L.marker(p,{draggable:true,autoPan:true,icon:L.divIcon({className:'',iconSize:[first?18:14,first?18:14],
+      html:`<div class="vtx${first?' first':''}" style="border-color:${col}" title="${first?'Cliquez pour fermer la zone':'Faites glisser pour déplacer'}"></div>`})}).addTo(S.drawVerts);
+    m.on('drag',e=>{const ll=e.target.getLatLng();arr[i]=[+ll.lat.toFixed(5),+ll.lng.toFixed(5)];drawShapes();});
+    m.on('dragend',drawInfo);
+    m.on('click',()=>{if(isPoly(d)&&i===0&&arr.length>=3&&!d.closed){d.closed=true;drawPreview();}});
+  }));
+  drawInfo();
+}
+function drawInfo(){const d=S.draw;if(!d)return;
+  if(isPoly(d))$('#drawHint').textContent=d.closed?'Forme fermée : faites glisser les points pour ajuster':(d.pts.length>=3?'Cliquez sur le premier point pour fermer la forme':'Cliquez pour poser les points du contour');
+  if(d.kind==='sect'){const n=d.pts.length;
+    $('#sDrawInfo').textContent=d.closed?`Secteur fermé (${n} points). Faites glisser les points pour ajuster, puis enregistrez.`
+      :n<3?`Cliquez sur la carte pour poser les points du contour, de n'importe quelle forme : ${n} sur 3 minimum.`:`${n} points. Cliquez sur le premier point (ou double-cliquez) pour fermer le secteur.`;return;}
+  const info=d.kind==='dist'?'#dInfo':'#prInfo';
+  if(d.shape==='zone'){const n=d.pts.length;
+    $(info).textContent=d.closed?`Zone fermée (${n} points). Faites glisser les points pour ajuster, puis enregistrez.`
+      :n<3?`Cliquez sur la carte pour poser les points du contour de la zone, de n'importe quelle forme : ${n} sur 3 minimum.`:`${n} points. Cliquez sur le premier point (ou double-cliquez) pour fermer la zone.`;
+  }else{const segs=d.segs.filter(g=>g.length),n=segs.filter(g=>g.length>1).length,len=segs.reduce((a,g)=>a+pathLen(g),0);
+    $(info).textContent=!segs.length?'Cliquez le long d\'une rue faite pour la tracer. Double-cliquez (ou « Nouvelle ligne ») pour passer à la rue suivante.'
+      :`${n} ligne${n>1?'s':''} · ${km(len)} km. Faites glisser un point pour l'ajuster. Double-clic ou « Nouvelle ligne » pour une autre rue.`
+    if(d.kind==='dist')$(info).textContent=$(info).textContent.replace(/ligne(s?) ·/,'rue$1 ·').replace('« Nouvelle ligne »','« Nouvelle rue »').replace("d'une rue faite","d'une rue à distribuer");}
+}
+function bindDraw(){if(!S.map||S.drawBound)return;S.drawBound=true;
+  S.map.on('click',e=>{const d=S.draw;if(!d)return;const pt=[+e.latlng.lat.toFixed(5),+e.latlng.lng.toFixed(5)];
+    if(isPoly(d)){if(d.closed)return;d.pts.push(pt);}else{if(!d.segs.length)d.segs.push([]);d.segs[d.segs.length-1].push(pt);}drawPreview();});
+  S.map.on('dblclick',()=>{const d=S.draw;if(!d)return;const g=isPoly(d)?d.pts:d.segs[d.segs.length-1];
+    if(g&&g.length>=2&&dist(g[g.length-1],g[g.length-2])<5)g.pop();
+    if(isPoly(d)){if(d.pts.length>=3)d.closed=true;}else if(g&&g.length)d.segs.push([]);drawPreview();});
+  S.map.on('mousemove',e=>{const d=S.draw;if(!d||!S.drawRubber)return;S.drawRubber.clearLayers();
+    const arr=isPoly(d)?d.pts:(d.segs[d.segs.length-1]||[]);if(!arr.length||(isPoly(d)&&d.closed))return;
+    const col=drawColor(d),cur=[e.latlng.lat,e.latlng.lng],line=[arr[arr.length-1],cur];
+    if(isPoly(d)&&arr.length>=2)line.push(arr[0]);
+    L.polyline(line,{color:col,weight:2,dashArray:'4 6',opacity:.8,interactive:false}).addTo(S.drawRubber);});
+  S.map.on('mouseout',()=>S.drawRubber&&S.drawRubber.clearLayers());
+}
+$('#btnNewSect').addEventListener('click',()=>{bindDraw();openSect(null);});
+$('#sUndo').addEventListener('click',()=>{if(S.draw){if(S.draw.closed)S.draw.closed=false;else S.draw.pts.pop();drawPreview();}});
+$('#sClear').addEventListener('click',()=>{if(S.draw){S.draw.pts=[];S.draw.closed=false;drawPreview();}});
+$('#sCancel').addEventListener('click',stopDraw);
+$('#sCons').addEventListener('change',drawPreview);
+$('#sectForm').addEventListener('submit',async e=>{e.preventDefault();$('#sErr').hidden=true;
+  const nom=$('#sNom').value.trim();
+  if(!nom){$('#sErr').hidden=false;$('#sErr').textContent='Donnez un nom au secteur.';$('#sNom').focus();return;}
+  if(!S.draw||S.draw.pts.length<3){$('#sErr').hidden=false;$('#sErr').textContent='Posez au moins 3 coins sur la carte.';return;}
+  const secteur={id:S.editSect||'s-'+uid(),nom,conseiller:$('#sCons').value,zone:S.draw.pts};
+  $('#sSave').disabled=true;
+  try{const j=await api('saveSecteur',{secteur});S.secteurs=j.secteurs.map(normS);toast(`Secteur « ${nom} » enregistré : il apparaît dans Pros360`);stopDraw();render();}
+  catch(err){$('#sErr').hidden=false;$('#sErr').textContent=err.server?err.message:'Enregistrement impossible : vérifiez la connexion.';}
+  $('#sSave').disabled=false;});
+$('#sectList').addEventListener('click',async e=>{
+  const g=e.target.closest('[data-sgo]');if(g){const z=S.secteurs.find(x=>x.id===g.dataset.sgo);if(z&&S.map&&z.zone.length>=3){S.showS=true;$('#lyrS').setAttribute('aria-pressed','true');render();S.map.fitBounds(z.zone,{padding:[60,60]});}return;}
+  const ed=e.target.closest('[data-sedit]');if(ed){bindDraw();openSect(S.secteurs.find(x=>x.id===ed.dataset.sedit));return;}
+  const del=e.target.closest('[data-sdel]');if(del){
+    if(!del.dataset.armed){del.dataset.armed='1';del.textContent='Confirmer';setTimeout(()=>{if(del.isConnected){delete del.dataset.armed;del.textContent='Supprimer';}},3500);return;}
+    try{const j=await api('deleteSecteur',{id:del.dataset.sdel});S.secteurs=j.secteurs.map(normS);toast('Secteur supprimé. Les prospections passées gardent son nom.');render();}catch(err){toast('Suppression impossible','bad');}}
+});
+
+/* ---------- Tracer une prospection (au bureau) ---------- */
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+S.prAvec=new Set();
+function prFill(){
+  const team=S.team.filter(m=>m.role!=='admin'&&m.actif!==false).map(m=>m.nom),cur=$('#prCons').value;
+  $('#prCons').innerHTML=(isAdmin()?team:[S.user.nom]).map(n=>`<option>${esc(n)}</option>`).join('');$('#prCons').disabled=!isAdmin();
+  if(cur&&[...$('#prCons').options].some(o=>o.value===cur))$('#prCons').value=cur;
+  if(!$('#prType').options.length)$('#prType').innerHTML=Object.entries(PROSPE).map(([k,p])=>`<option value="${k}">${esc(p.label)}</option>`).join('');
+  const cs=$('#prSect').value;
+  $('#prSect').innerHTML='<option value="">Sans secteur</option>'+S.secteurs.map(z=>`<option value="${esc(z.id)}">${esc(z.nom)}${z.conseiller?' · '+esc(z.conseiller):''}</option>`).join('')+'<option value="__autre">Autre (écrire le nom)</option>';
+  if([...$('#prSect').options].some(o=>o.value===cs))$('#prSect').value=cs;
+  prOps();prAvecRender();
+}
+function prOps(){
+  const date=$('#prDate').value,cur=$('#prOp').value;
+  const keys=[...new Set(S.prospections.filter(x=>x.operation&&x.operation.slice(4,14)===date).map(x=>x.operation).concat(S.ops.filter(o=>o.date===date).map(o=>o.id)))];
+  $('#prOp').innerHTML='<option value="__new">Nouvelle opération</option>'+keys.map(k=>`<option value="${esc(k)}">${esc(opName(k))}</option>`).join('');
+  if([...$('#prOp').options].some(o=>o.value===cur))$('#prOp').value=cur;else if(keys.length)$('#prOp').value=keys[0];
+  $('#prOpNomF').hidden=$('#prOp').value!=='__new';
+}
+function prAvecRender(){const me=$('#prCons').value;
+  $('#prAvec').innerHTML=S.team.filter(m=>m.role!=='admin'&&m.actif!==false&&m.nom!==me).map(m=>`<button type="button" class="chip" data-pav="${esc(m.nom)}" aria-pressed="${S.prAvec.has(m.nom)}"><span class="swatch" style="--c:${m.couleur};width:10px;height:10px"></span>${esc(m.nom)}</button>`).join('');}
+function openProsp(){bindDraw();$('#sectForm').hidden=true;$('#prospForm').hidden=false;$('#prErr').hidden=true;
+  $('#prDate').value=todayStr();$('#prCdp').checked=false;$('#prOpF').hidden=true;$('#prKeepNote').hidden=true;$('#prOpNom').value='';
+  $('#prSect').value='';$('#prSectAutreF').hidden=true;$('#prSectAutre').value='';$('#prQte').value='';$('#prCom').value='';S.prAvec.clear();prFill();
+  const sh=$('#prShape [aria-pressed="true"]').dataset.shape;$('#prNewLine').hidden=sh!=='ligne';
+  startDraw({kind:'prosp',shape:sh,pts:[],segs:[]},sh==='zone'?'Cliquez pour poser les points du contour':'Cliquez le long des rues faites');drawPreview();}
+$('#btnNewProsp').addEventListener('click',openProsp);
+$('#prCancel').addEventListener('click',stopDraw);
+$('#prShape').addEventListener('click',e=>{const b=e.target.closest('[data-shape]');if(!b||!S.draw)return;
+  document.querySelectorAll('#prShape button').forEach(x=>x.setAttribute('aria-pressed',x===b));S.draw.shape=b.dataset.shape;S.draw.pts=[];S.draw.segs=[];S.draw.closed=false;
+  $('#prNewLine').hidden=S.draw.shape!=='ligne';$('#drawHint').textContent=S.draw.shape==='ligne'?'Cliquez le long des rues faites':'Cliquez pour poser les points du contour';drawPreview();});
+$('#prNewLine').addEventListener('click',()=>{const d=S.draw;if(!d)return;const g=d.segs[d.segs.length-1];if(g&&g.length)d.segs.push([]);drawPreview();});
+$('#prUndo').addEventListener('click',()=>{const d=S.draw;if(!d)return;if(d.shape==='zone'){if(d.closed)d.closed=false;else d.pts.pop();}else{while(d.segs.length&&!d.segs[d.segs.length-1].length)d.segs.pop();const g=d.segs[d.segs.length-1];if(g)g.pop();}drawPreview();});
+$('#prClear').addEventListener('click',()=>{if(S.draw){S.draw.pts=[];S.draw.segs=[];S.draw.closed=false;drawPreview();}});
+$('#prCons').addEventListener('change',()=>{S.prAvec.delete($('#prCons').value);prAvecRender();drawPreview();});
+$('#prDate').addEventListener('change',prOps);
+$('#prOp').addEventListener('change',()=>{$('#prOpNomF').hidden=$('#prOp').value!=='__new';});
+$('#prType').addEventListener('change',()=>{$('#prQteL').textContent=(PROSPE[$('#prType').value]||{}).qty||'Quantité';});
+$('#prSect').addEventListener('change',()=>{$('#prSectAutreF').hidden=$('#prSect').value!=='__autre';
+  const z=S.secteurs.find(x=>x.id===$('#prSect').value);
+  if(z&&z.conseiller&&z.conseiller!==$('#prCons').value){S.prAvec.add(z.conseiller);prAvecRender();}
+  if(z&&S.map&&z.zone.length>=3){S.showS=true;$('#lyrS').setAttribute('aria-pressed','true');render();S.map.fitBounds(z.zone,{padding:[60,60],maxZoom:17});}});
+$('#prCdp').addEventListener('change',()=>{$('#prOpF').hidden=!$('#prCdp').checked;$('#prKeepNote').hidden=!$('#prCdp').checked;prOps();drawPreview();});
+$('#prAvec').addEventListener('click',e=>{const b=e.target.closest('[data-pav]');if(!b)return;const n=b.dataset.pav;S.prAvec.has(n)?S.prAvec.delete(n):S.prAvec.add(n);b.setAttribute('aria-pressed',S.prAvec.has(n));});
+$('#prospForm').addEventListener('submit',async e=>{e.preventDefault();$('#prErr').hidden=true;const d=S.draw;if(!d)return;
+  const err=m=>{$('#prErr').hidden=false;$('#prErr').textContent=m;};
+  const segs=d.segs.filter(g=>g.length>1);
+  if(d.shape==='zone'&&d.pts.length<3)return err('Posez au moins 3 coins sur la carte pour la zone.');
+  if(d.shape==='ligne'&&!segs.length)return err('Tracez au moins une rue : cliquez sur la carte à plusieurs endroits le long de la rue.');
+  const sel=$('#prSect').value,z=S.secteurs.find(x=>x.id===sel),libre=$('#prSectAutre').value.trim();
+  if(sel==='__autre'&&!libre)return err('Écrivez le nom du secteur.');
+  const date=$('#prDate').value||todayStr();
+  const debut=date===todayStr()?new Date().toISOString():new Date(date+'T10:00').toISOString();
+  let operation='';
+  $('#prSave').disabled=true;
+  try{
+    if($('#prCdp').checked){operation=$('#prOp').value;
+      if(operation==='__new'){operation='cdp-'+date+'-'+uid().slice(-4);const nom=$('#prOpNom').value.trim();
+        if(nom){const j=await api('saveOperation',{operation:{id:operation,nom,date}});S.ops=j.operations;}}}
+    const q=$('#prQte').value;
+    const item={id:uid(),debut,fin:debut,conseiller:$('#prCons').value,type:$('#prType').value,secteur:z?z.nom:(sel==='__autre'?libre:''),secteurId:z?z.id:'',
+      quantite:q===''?'':Number(q),commentaire:$('#prCom').value.trim(),mode:d.shape,trace:d.shape==='zone'?d.pts:segs,avec:[...S.prAvec],operation};
+    await api('add',{kind:'prospection',item});
+    S.prospections.push(normP(item));
+    toast(`Prospection de ${item.conseiller} enregistrée`);
+    d.pts=[];d.segs=[];d.closed=false;$('#prQte').value='';$('#prCom').value='';
+    if(operation){prOps();$('#prOp').value=operation;$('#prOpNomF').hidden=true;$('#prOpNom').value='';S.prAvec.clear();prAvecRender();}
+    else{stopDraw();}
+    render();if(S.draw)drawPreview();
+  }catch(ex){err(ex.server?ex.message:'Enregistrement impossible : vérifiez la connexion.');}
+  $('#prSave').disabled=false;});
+async function delP(id,btn){
+  if(!btn.dataset.armed){btn.dataset.armed='1';btn.textContent='Confirmer la suppression';return;}
+  try{await api('delete',{kind:'prospection',id});S.prospections=S.prospections.filter(x=>x.id!==id);if(S.map)S.map.closePopup();toast('Tracé supprimé');render();}
+  catch(e){toast('Suppression impossible','bad');}
+}
+
+/* ---------- Distributeur professionnel : zones par ville et rues à distribuer ---------- */
+const VILLE_COLORS={'Aulnay-sous-Bois':'#7048e8','Le Blanc-Mesnil':'#d6336c','Villepinte':'#0c8599','Drancy':'#364fc7','Sevran':'#e8590c','Autres zones':'#495057'};
+const VILLE_EXTRA=['#ae3ec9','#c2255c','#0b7285','#5c940d','#9c36b5','#1864ab'];
+function villeColor(v){if(VILLE_COLORS[v])return VILLE_COLORS[v];let h=0;for(const ch of String(v||''))h=(h*31+ch.charCodeAt(0))>>>0;return VILLE_EXTRA[h%VILLE_EXTRA.length];}
+function villeColors(){const o={};S.distrib.forEach(z=>{if(z.forme==='zone')o[z.ville]=villeColor(z.ville);});return o;}
+const DSTAT={a_faire:'À distribuer',faite:'Distribuée',exclue:'À enlever'};
+function distChip(z){if(z.statut==='exclue')return'<span class="age r">à enlever</span>';
+  if(z.statut==='faite'&&z.date){const j=Math.floor((Date.now()-new Date(z.date+'T12:00'))/864e5);
+    return`<span class="age ${j<=30?'g':j<=90?'o':'r'}">distribuée le ${esc(new Date(z.date+'T12:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}))}</span>`;}
+  if(z.statut==='faite')return'<span class="age g">distribuée</span>';return'<span class="age n">à distribuer</span>';}
+function popD(z){return`<div class="pp"><b>${esc(z.nom)}</b> · ${esc(z.ville)}<br>${distChip(z)}${z.forme==='ligne'?`<br>${z.segs.length} rue${z.segs.length>1?'s':''}`:''}${z.commentaire?`<br><i>${esc(z.commentaire)}</i>`:''}
+  ${isAdmin()&&z.statut!=='exclue'?`<br><button type="button" class="delp" style="color:var(--ok)" onclick="distDone('${esc(z.id)}')">Marquer distribuée aujourd'hui</button>`:''}</div>`;}
+function renderDistLayer(ia){
+  S.distrib.forEach(z=>{if(S.distHidden.has(z.ville)||z.id===S.editDist)return;let l;
+    if(z.forme==='ligne'){if(!z.segs.length)return;l=L.polyline(z.segs,{color:'#212529',weight:3.5,opacity:z.statut==='faite'?.35:.8,lineCap:'round',interactive:ia});}
+    else{if(!z.poly||z.poly.length<3)return;const c=villeColor(z.ville),ex=z.statut==='exclue';
+      l=L.polygon(z.poly,{color:ex?'#e03131':c,weight:ex?2:2.5,dashArray:ex?'6 6':null,fillColor:ex?'#e03131':c,fillOpacity:ex?.04:z.statut==='faite'?.38:.16,interactive:ia});
+      l.bindTooltip(esc(z.nom),{direction:'center',className:'sect-lbl'});}
+    l.bindPopup(popD(z)).addTo(S.layer);S.byId[z.id]=l;});
+}
+function renderDist(){
+  const box=$('#distList');if(!box)return;$('#btnNewDist').hidden=!isAdmin();
+  const vs=[...new Set(S.distrib.map(z=>z.ville))].sort((a,b)=>(a==='Autres zones')-(b==='Autres zones')||a.localeCompare(b));
+  $('#dVilles').innerHTML=vs.map(v=>`<option value="${esc(v)}">`).join('');
+  if(!S.distrib.length){box.innerHTML='<div class="empty">Aucune zone de distribution. Ajoutez la première avec « + Zone ».</div>';return;}
+  const num=s=>{const m=String(s).match(/\d+/);return m?Number(m[0]):999;};
+  box.innerHTML=vs.map(v=>{const zs=S.distrib.filter(z=>z.ville===v).sort((a,b)=>(a.forme==='ligne')-(b.forme==='ligne')||num(a.nom)-num(b.nom)||a.nom.localeCompare(b.nom));
+    const c=villeColor(v),fa=zs.filter(z=>z.statut==='faite').length,act=zs.filter(z=>z.statut!=='exclue').length,open=S.distOpen.has(v);
+    return`<div class="dz" style="--c:${c}"><div class="vhead"><input type="checkbox" data-dv="${esc(v)}" title="Afficher sur la carte" aria-label="Afficher ${esc(v)} sur la carte"${S.distHidden.has(v)?'':' checked'}>
+      <button type="button" class="vbtn" data-dopen="${esc(v)}" aria-expanded="${open}"><span class="swatch" style="border-radius:4px"></span><b>${esc(v)}</b><span class="note">${act?`${fa} / ${act} distribuée${fa>1?'s':''}`:zs.length+' zone'+(zs.length>1?'s':'')}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button></div>
+      ${open?zs.map(z=>`<div class="drow" style="--c:${z.forme==='ligne'?'#212529':z.statut==='exclue'?'#e03131':c}"><span class="swatch" style="border-radius:4px"></span>
+        <button type="button" class="dname" data-dgo="${esc(z.id)}" title="Voir sur la carte"><b>${esc(z.nom)}</b> ${distChip(z)}${z.commentaire?`<span class="note">${esc(z.commentaire)}</span>`:''}</button>
+        ${isAdmin()?`<span class="dacts">${z.statut!=='exclue'?`<button class="ib" type="button" data-ddone="${esc(z.id)}" title="Marquer distribuée aujourd'hui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`:''}<button class="ib" type="button" data-dedit="${esc(z.id)}" title="Modifier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button><button class="ib del" type="button" data-ddel="${esc(z.id)}" title="Supprimer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button></span>`:''}</div>`).join(''):''}</div>`;}).join('');
+}
+function distBounds(z){return z.forme==='ligne'?z.segs.flat():z.poly;}
+async function saveDist(z,msg){const j=await api('saveDistrib',{zone:z});S.distrib=j.distribution.map(normD);toast(msg);render();}
+async function distDone(id){const z=S.distrib.find(x=>x.id===id);if(!z)return;
+  try{if(S.map)S.map.closePopup();await saveDist({id,statut:'faite',date:todayStr()},`« ${z.nom} » distribuée aujourd'hui`);}catch(e){toast('Enregistrement impossible','bad');}}
+function updDDate(){$('#dDateF').hidden=$('#dStatut').value!=='faite';}
+function openDist(z){bindDraw();$('#sectForm').hidden=true;$('#prospForm').hidden=true;$('#distForm').hidden=false;$('#dErr').hidden=true;
+  S.editDist=z?z.id:null;$('#distTitle').textContent=z?'Modifier « '+z.nom+' »':'Nouvelle zone';
+  $('#dVille').value=z?z.ville:(S.lastVille||'');$('#dNom').value=z?z.nom:'';$('#dStatut').value=z?z.statut:'a_faire';$('#dDate').value=z&&z.date?z.date:todayStr();$('#dCom').value=z?z.commentaire||'':'';updDDate();
+  const sh=z?z.forme:'zone';document.querySelectorAll('#dShape button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.shape===sh));$('#dNewLine').hidden=sh!=='ligne';
+  startDraw({kind:'dist',shape:sh,pts:z&&sh==='zone'?z.poly.map(p=>p.slice()):[],segs:z&&sh==='ligne'?z.segs.map(g=>g.map(p=>p.slice())).concat([[]]):[],closed:!!(z&&sh==='zone')},sh==='zone'?'Cliquez pour poser les points du contour':'Cliquez le long des rues à distribuer');
+  if(S.map&&z){const b=distBounds(z);if(b&&b.length)S.map.fitBounds(b,{padding:[60,60],maxZoom:17});}
+  drawPreview();$(z?'#dNom':'#dVille').focus();}
+$('#btnNewDist').addEventListener('click',()=>{if(!S.showD){setShowD(true);render();}openDist(null);});
+$('#dCancel').addEventListener('click',stopDraw);
+$('#dStatut').addEventListener('change',updDDate);
+$('#dVille').addEventListener('input',()=>S.draw&&drawPreview());
+$('#dShape').addEventListener('click',e=>{const b=e.target.closest('[data-shape]');if(!b||!S.draw)return;
+  document.querySelectorAll('#dShape button').forEach(x=>x.setAttribute('aria-pressed',x===b));Object.assign(S.draw,{shape:b.dataset.shape,pts:[],segs:[],closed:false});
+  $('#dNewLine').hidden=S.draw.shape!=='ligne';$('#drawHint').textContent=S.draw.shape==='ligne'?'Cliquez le long des rues à distribuer':'Cliquez pour poser les points du contour';drawPreview();});
+$('#dNewLine').addEventListener('click',()=>{const d=S.draw;if(!d)return;const g=d.segs[d.segs.length-1];if(g&&g.length)d.segs.push([]);drawPreview();});
+$('#dUndo').addEventListener('click',()=>{const d=S.draw;if(!d)return;if(d.shape==='zone'){if(d.closed)d.closed=false;else d.pts.pop();}else{while(d.segs.length&&!d.segs[d.segs.length-1].length)d.segs.pop();const g=d.segs[d.segs.length-1];if(g)g.pop();}drawPreview();});
+$('#dClear').addEventListener('click',()=>{if(S.draw){S.draw.pts=[];S.draw.segs=[];S.draw.closed=false;drawPreview();}});
+$('#distForm').addEventListener('submit',async e=>{e.preventDefault();const d=S.draw;if(!d)return;const err=m=>{$('#dErr').hidden=false;$('#dErr').textContent=m;};$('#dErr').hidden=true;
+  const ville=$('#dVille').value.trim(),nom=$('#dNom').value.trim(),segs=d.segs.filter(g=>g.length>1);
+  if(!ville)return err('Indiquez la ville.');if(!nom)return err('Donnez un nom à la zone.');
+  if(d.shape==='zone'&&d.pts.length<3)return err('Posez au moins 3 points sur la carte.');
+  if(d.shape==='ligne'&&!segs.length)return err('Tracez au moins une rue sur la carte.');
+  const st=$('#dStatut').value;
+  const zone={id:S.editDist||'d-'+uid(),ville,nom,forme:d.shape,statut:st,date:st==='faite'?($('#dDate').value||todayStr()):'',commentaire:$('#dCom').value.trim(),trace:d.shape==='zone'?d.pts:segs};
+  $('#dSave').disabled=true;
+  try{S.lastVille=ville;S.distHidden.delete(ville);S.distOpen.add(ville);await saveDist(zone,`« ${nom} » enregistrée`);stopDraw();}
+  catch(ex){err(ex.server?ex.message:'Enregistrement impossible : vérifiez la connexion.');}
+  $('#dSave').disabled=false;});
+$('#distList').addEventListener('change',e=>{const v=e.target.dataset.dv;if(v==null)return;e.target.checked?S.distHidden.delete(v):S.distHidden.add(v);LS.set('cc_distHidden',[...S.distHidden]);renderMap();});
+$('#distList').addEventListener('click',async e=>{
+  const o=e.target.closest('[data-dopen]');if(o){const v=o.dataset.dopen;S.distOpen.has(v)?S.distOpen.delete(v):S.distOpen.add(v);renderDist();return;}
+  const g=e.target.closest('[data-dgo]');if(g){const z=S.distrib.find(x=>x.id===g.dataset.dgo);if(!z||!S.map)return;
+    if(!S.showD)setShowD(true);S.distHidden.delete(z.ville);LS.set('cc_distHidden',[...S.distHidden]);render();
+    const b=distBounds(z);if(b&&b.length)S.map.fitBounds(b,{padding:[60,60],maxZoom:17});const l=S.byId[z.id];if(l)l.openPopup();return;}
+  const dn=e.target.closest('[data-ddone]');if(dn){distDone(dn.dataset.ddone);return;}
+  const ed=e.target.closest('[data-dedit]');if(ed){openDist(S.distrib.find(x=>x.id===ed.dataset.dedit));return;}
+  const del=e.target.closest('[data-ddel]');if(del){
+    if(!del.dataset.armed){del.dataset.armed='1';del.classList.add('armed');del.title='Cliquez encore pour supprimer';toast('Cliquez encore sur la corbeille pour supprimer');setTimeout(()=>{if(del.isConnected){delete del.dataset.armed;del.classList.remove('armed');}},3500);return;}
+    try{const j=await api('deleteDistrib',{id:del.dataset.ddel});S.distrib=j.distribution.map(normD);toast('Zone supprimée');render();}catch(err){toast('Suppression impossible','bad');}}
+});
+
+/* ---------- Opérations coup de poing ---------- */
+function renderOps(){
+  const groups={};S.prospections.filter(x=>x.operation).forEach(x=>(groups[x.operation]=groups[x.operation]||[]).push(x));
+  const keys=Object.keys(groups).sort((a,b)=>a.slice(4,14)<b.slice(4,14)?1:-1);
+  if(!keys.length){$('#opsList').innerHTML='<div class="empty">Aucune opération coup de poing pour le moment. Pour en créer une, cliquez sur « + Tracer une prospection » et cochez « Opération coup de poing ».</div>';return;}
+  $('#opsList').innerHTML=keys.map(k=>{const xs=groups[k],o=S.ops.find(x=>x.id===k)||{};
+    const by={};xs.forEach(x=>{const b=by[x.conseiller]=by[x.conseiller]||{len:0,q:0};b.len+=x.len;b.q+=Number(x.quantite)||0;});
+    const tot=xs.reduce((a,x)=>a+x.len,0),q=xs.reduce((a,x)=>a+(Number(x.quantite)||0),0),sects=[...new Set(xs.map(x=>x.secteur).filter(Boolean))];
+    const date=new Date(k.slice(4,14)+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    return`<div class="opcard"><div class="note" style="font-weight:700;text-transform:capitalize">${esc(date)}</div>
+      ${isAdmin()?`<div class="head"><input type="text" data-opname="${esc(k)}" value="${esc(o.nom||'')}" placeholder="Nommer l'opération (ex. Coup de poing Le Bourg)" aria-label="Nom de l'opération"><button class="btn" type="button" data-opsave="${esc(k)}">Enregistrer</button></div>`:`<b>${esc(opName(k))}</b>`}
+      <div class="opp">${Object.entries(by).map(([n,b])=>`<span style="--c:${colorOf(n)}"><i></i><b>${esc(n)}</b> ${km(b.len)} km${b.q?' · '+b.q:''}</span>`).join('')}</div>
+      <div class="note">${Object.keys(by).length} conseiller${Object.keys(by).length>1?'s':''} · ${km(tot)} km au total${q?' · '+q+' portes / boîtes':''}${sects.length?' · '+esc(sects.join(', ')):''}</div>
+      <div class="tools"><button class="btn" type="button" data-opgo="${esc(k)}">Voir sur la carte</button></div></div>`;}).join('');
+}
+$('#opsList').addEventListener('click',async e=>{
+  const sv=e.target.closest('[data-opsave]');if(sv){const k=sv.dataset.opsave,inp=document.querySelector(`[data-opname="${CSS.escape(k)}"]`);
+    try{const j=await api('saveOperation',{operation:{id:k,nom:inp.value.trim(),date:k.slice(4,14)}});S.ops=j.operations;toast('Nom de l\'opération enregistré');render();}catch(err){toast('Enregistrement impossible','bad');}return;}
+  const g=e.target.closest('[data-opgo]');if(g&&S.map){const k=g.dataset.opgo,xs=S.prospections.filter(x=>x.operation===k);
+    if(xs.some(x=>new Date(x.debut).getTime()<periodStart())){$('#periode').value='tout';}
+    S.showO=true;$('#lyrO').setAttribute('aria-pressed','true');xs.forEach(x=>S.hidden.delete(x.conseiller));render();
+    const pts=xs.flatMap(x=>x.pts);if(pts.length)S.map.fitBounds(pts,{padding:[60,60],maxZoom:18});}
+});
+$('#opsList').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset.opname){e.preventDefault();document.querySelector(`[data-opsave="${CSS.escape(e.target.dataset.opname)}"]`).click();}});
+
+/* ---------- Onglets, photos, rendu ---------- */
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;
+  document.querySelectorAll('.tabs [data-tab]').forEach(x=>x.setAttribute('aria-selected',x===b));
+  if(S.tab==='distrib'&&!S.showD){setShowD(true);render();}
+  ['equipe','activite','secteurs','ops','distrib','gerer'].forEach(k=>$('#p-'+k).hidden=k!==S.tab);$('#p-'+S.tab).scrollTop=0;
+  if($('#body').classList.contains('collapsed')){$('#body').classList.remove('collapsed');setTimeout(()=>S.map&&S.map.invalidateSize(),230);}
+  if(S.draw&&((S.draw.kind==='sect'&&S.tab!=='secteurs')||(S.draw.kind==='prosp'&&S.tab!=='ops')||(S.draw.kind==='dist'&&S.tab!=='distrib')))stopDraw();});
+function openLb(p){$('#lbImg').src=photoUrl(p,true);$('#lightbox').hidden=false;}
+$('#lightbox').addEventListener('click',e=>{if(e.target.id!=='lbImg'){$('#lightbox').hidden=true;$('#lbImg').src='';}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#lightbox').hidden=true;});
+$('#periode').addEventListener('change',()=>{S.fitted=false;render();});
+$('#periodPills').addEventListener('click',e=>{const b=e.target.closest('[data-per]');if(!b)return;$('#periode').value=b.dataset.per;$('#periode').dispatchEvent(new Event('change'));});
+function syncPeriod(){const v=$('#periode').value;document.querySelectorAll('#periodPills [data-per]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.per===v));}
+$('#btnPanel').addEventListener('click',()=>{$('#body').classList.toggle('collapsed');setTimeout(()=>S.map&&S.map.invalidateSize(),230);});
+function render(){syncPeriod();renderKpis();renderMap();renderMembers();renderFeed();renderTeam();renderLegend();renderSecteurs();renderOps();renderDist();}
+
+(async function init(){
+  const s=LS.get('cc_session',null);
+  if(s&&s.user){S.user=s.user;S.code=s.code;S.team=LS.get('pp_equipe',[]);enter();return;}
+  if(!API_URL){ // démo : ouverture directe sur la carte
+    try{const j=await api('login',{nom:'Direction',code:'0000'});S.user=j.user;S.code='0000';S.team=j.equipe;enter();return;}catch(e){}
+  }
+  showLogin();
+})();
+</script>
+</body>
+</html>
